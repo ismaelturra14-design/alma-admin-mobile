@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
 
-export default function IndexRoute() {
+export default function AppNavigator() {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
@@ -14,7 +14,5 @@ export default function IndexRoute() {
     );
   }
 
-  return (
-    <Redirect href={isAuthenticated ? { pathname: '/home' } : { pathname: '/login' }} />
-  );
+  return <Redirect href={isAuthenticated ? '/home' : '/login'} />;
 }

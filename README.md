@@ -1,56 +1,116 @@
-# Welcome to your Expo app 👋
+# Alma Médica Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicación Expo + React Native + TypeScript para la autenticación del backend actual del web de Alma Médica.
 
-## Get started
+## Contrato backend que se respeta
 
-1. Install dependencies
+- Base URL: https://starfish-app-2-5jds5.ondigitalocean.app/api_nestjs
+- Login: POST /auth/login/web
+- Body: { username, password }
+- Respuesta esperada: { status, data, tokens: { access_token, refresh_token, access_expires_in } }
+- Autorización: Authorization: Bearer <access_token>
+- Refresh: POST /auth/refresh-token con { refresh_token }
+- Logout real: no encontrado en el repo web
+- /me o profile: no encontrado
 
-   ```bash
-   npm install
-   ```
+## Requisitos
 
-2. Start the app
+- Node.js 20+
+- npm o bun
+- Expo CLI
+- Android Studio o Xcode (opcional, según el método de ejecución)
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Instalación
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Variables de entorno
 
-### Other setup steps
+Copia `.env.example` a `.env` y ajusta si es necesario:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env
+```
 
-## Learn more
+Contenido recomendado:
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+EXPO_PUBLIC_API_BASE_URL=https://starfish-app-2-5jds5.ondigitalocean.app/api_nestjs
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Ejecutar la app
 
-## Join the community
+### Desarrollo local
 
-Join our community of developers creating universal apps.
+```bash
+npm start
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Android
+
+```bash
+npm run android
+```
+
+### iOS
+
+```bash
+npm run ios
+```
+
+### Web
+
+```bash
+npm run web
+```
+
+## Arquitectura clave
+
+- `src/api/axiosClient.ts`: cliente Axios con refresh token y manejo de 401.
+- `src/api/authApi.ts`: endpoints de autenticación.
+- `src/services/authService.ts`: persistencia y lógica de sesión.
+- `src/context/AuthContext.tsx`: estado global de autenticación.
+- `src/store/sessionStore.ts`: almacenamiento seguro con `expo-secure-store`.
+- `src/components/auth/LoginForm.tsx`: formulario de login.
+- `src/screens/auth/LoginScreen.tsx`: pantalla de acceso.
+- `src/screens/home/HomeScreen.tsx`: pantalla principal autenticada.
+
+## Seguridad y validación
+
+- Los tokens sensibles se guardan con `expo-secure-store`.
+- No se guarda información sensible en logs ni texto plano.
+- Si el refresh falla, se limpia la sesión y se fuerza el login.
+- No se inventan endpoints ni contratos que no existan en el código web real.
+
+## Detecciones importantes
+
+> No se encontró logout real en el backend web revisado. La limpieza de sesión se hace localmente en la app.
+>
+> No se encontró un endpoint /auth/me o perfil real implementado en el proyecto web.
+
+## Validación rápida
+
+```bash
+npm run typecheck
+```
+
+## Estructura principal
+
+```text
+src/
+  api/
+  app/
+  components/
+  config/
+  constants/
+  context/
+  navigation/
+  screens/
+  services/
+  store/
+  theme/
+  types/
+  utils/
+```

@@ -1,16 +1,17 @@
 {
   "expo": {
-    "name": "alma-admin-mobile",
-    "slug": "alma-admin-mobile",
+    "name": "Alma Médica",
+    "slug": "alma-medica-mobile",
+    "scheme": "alma-medica",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "almaadminmobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.almamedica.mobile"
     },
     "android": {
+      "package": "com.almamedica.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -25,6 +26,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
       [
         "expo-splash-screen",
         {
@@ -35,7 +37,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
+      "typedRoutes": false,
       "reactCompiler": true
     }
   }

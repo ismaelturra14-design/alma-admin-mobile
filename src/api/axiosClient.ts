@@ -2,7 +2,7 @@ import { create, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
 import { ENV } from '@/config/env';
 import { sessionStore } from '@/store/sessionStore';
-import type { RefreshTokenResponse } from '@/types/auth';
+import type { RefreshTokenResponse } from '@/features/auth/types/auth';
 
 const api = create({
   baseURL: ENV.API_BASE_URL,

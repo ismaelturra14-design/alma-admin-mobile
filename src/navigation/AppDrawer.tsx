@@ -1,20 +1,28 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
-    Animated,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+  Animated,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { useAuth } from '@/context/AuthContext';
-import { getVisibleMenuSections } from '@/navigation/menuConfig';
-import { ModulePlaceholderScreen } from '@/screens/modules/ModulePlaceholderScreen';
-import { colors } from '@/theme/colors';
+import { useAuth } from "@/features/auth/context/AuthContext";
+import { getVisibleMenuSections } from "@/navigation/menuConfig";
+import { AuditPermissionsScreen } from "@/features/audit/screens/AuditPermissionsScreen";
+import { EmrLinksScreen } from "@/features/emr-links/screens/EmrLinksScreen";
+import { MantenedorPantallasScreen } from "@/features/screen-maintenance/screens/MantenedorPantallasScreen";
+import { ModulePlaceholderScreen } from "@/screens/modules/ModulePlaceholderScreen";
+import { SpecialtyGroupingScreen } from "@/features/specialty-groups/screens/SpecialtyGroupingScreen";
+import { SystemInterfacesScreen } from "@/features/system-interfaces/screens/SystemInterfacesScreen";
+import { TmReporterLinksScreen } from "@/features/tm-reporter-links/screens/TmReporterLinksScreen";
+import { UsersManagementScreen } from "@/features/users/screens/UsersManagementScreen";
+import { colors } from "@/theme/colors";
 
 type ModuleScreen = {
   id: string;
@@ -23,75 +31,122 @@ type ModuleScreen = {
 };
 
 const moduleScreens: Record<string, ModuleScreen> = {
-  Inicio: { id: 'inicio', label: 'Inicio', description: 'Panel principal de Alma Admin Mobile.' },
+  Inicio: {
+    id: "inicio",
+    label: "Inicio",
+    description: "Panel principal de Alma Admin Mobile.",
+  },
   UsuariosDelSistema: {
-    id: 'usuarios-del-sistema',
-    label: 'Usuarios del Sistema',
-    description: 'Administración de usuarios y accesos del sistema.',
+    id: "usuarios-del-sistema",
+    label: "Usuarios del Sistema",
+    description: "Administración de usuarios y accesos del sistema.",
   },
-  Prestaciones: { id: 'prestaciones', label: 'Prestaciones', description: 'Módulo de prestaciones del sistema.' },
+  Prestaciones: {
+    id: "prestaciones",
+    label: "Prestaciones",
+    description: "Módulo de prestaciones del sistema.",
+  },
   AgrupacionEspecialidades: {
-    id: 'agrupacion-especialidades',
-    label: 'Agrupación Especialidades',
-    description: 'Gestión de agrupación y clasificación de especialidades.',
+    id: "agrupacion-especialidades",
+    label: "Agrupación Especialidades",
+    description: "Gestión de agrupación y clasificación de especialidades.",
   },
-  VinculosEMR: { id: 'vinculos-emr', label: 'Vínculos EMR', description: 'Integración y administración de vínculos EMR.' },
+  VinculosEMR: {
+    id: "vinculos-emr",
+    label: "Vínculos EMR",
+    description: "Integración y administración de vínculos EMR.",
+  },
   VinculosTMInformante: {
-    id: 'vinculos-tm-informante',
-    label: 'Vínculos TM-Informante',
-    description: 'Gestión de vínculos con TM-Informante.',
+    id: "vinculos-tm-informante",
+    label: "Vínculos TM-Informante",
+    description: "Gestión de vínculos con TM-Informante.",
   },
-  Caja: { id: 'caja', label: 'Caja', description: 'Operaciones de caja y flujo de pagos.' },
+  Caja: {
+    id: "caja",
+    label: "Caja",
+    description: "Operaciones de caja y flujo de pagos.",
+  },
   MantenedorGrupos: {
-    id: 'mantenedor-grupos',
-    label: 'Mantenedor Grupos',
-    description: 'Mantenimiento de grupos y configuración de acceso.',
+    id: "mantenedor-grupos",
+    label: "Mantenedor Grupos",
+    description: "Mantenimiento de grupos y configuración de acceso.",
   },
   RolesPermisos: {
-    id: 'roles-permisos',
-    label: 'Roles y Permisos',
-    description: 'Configuración de roles y permisos del sistema.',
+    id: "roles-permisos",
+    label: "Roles y Permisos",
+    description: "Configuración de roles y permisos del sistema.",
   },
   AuditoriaPermisos: {
-    id: 'auditoria-permisos',
-    label: 'Auditoría de permisos',
-    description: 'Consulta y revisión de cambios de permisos.',
+    id: "auditoria-permisos",
+    label: "Auditoría de permisos",
+    description: "Consulta y revisión de cambios de permisos.",
   },
-  BoxPantalla: { id: 'box-pantalla', label: 'Box Pantalla', description: 'Configuración y administración de pantallas.' },
+  BoxPantalla: {
+    id: "box-pantalla",
+    label: "Box Pantalla",
+    description: "Configuración y administración de pantallas.",
+  },
   MantenedorPantallas: {
-    id: 'mantenedor-pantallas',
-    label: 'Mantenedor Pantallas',
-    description: 'Mantenimiento del catálogo de pantallas del sistema.',
+    id: "mantenedor-pantallas",
+    label: "Mantenedor Pantallas",
+    description: "Mantenimiento del catálogo de pantallas del sistema.",
   },
   GestionTotem: {
-    id: 'gestion-totem',
-    label: 'Gestión Totem',
-    description: 'Administración de totems y pantallas de información.',
+    id: "gestion-totem",
+    label: "Gestión Totem",
+    description: "Administración de totems y pantallas de información.",
   },
-  Interfaces: { id: 'interfaces', label: 'Interfaces', description: 'Integración y mantenimiento de interfaces del sistema.' },
-  Financiadores: { id: 'financiadores', label: 'Financiadores', description: 'Gestión de financiadores del sistema.' },
-  TiposPago: { id: 'tipos-pago', label: 'Tipos de Pago', description: 'Administración de tipos de pago.' },
-  MetodosPago: { id: 'metodos-pago', label: 'Métodos de Pago', description: 'Configuración de métodos de pago.' },
+  Interfaces: {
+    id: "interfaces",
+    label: "Interfaces",
+    description: "Integración y mantenimiento de interfaces del sistema.",
+  },
+  Financiadores: {
+    id: "financiadores",
+    label: "Financiadores",
+    description: "Gestión de financiadores del sistema.",
+  },
+  TiposPago: {
+    id: "tipos-pago",
+    label: "Tipos de Pago",
+    description: "Administración de tipos de pago.",
+  },
+  MetodosPago: {
+    id: "metodos-pago",
+    label: "Métodos de Pago",
+    description: "Configuración de métodos de pago.",
+  },
   RelacionPagos: {
-    id: 'relacion-pagos',
-    label: 'Relación de Pagos',
-    description: 'Consulta y administración de relaciones de pagos.',
+    id: "relacion-pagos",
+    label: "Relación de Pagos",
+    description: "Consulta y administración de relaciones de pagos.",
   },
 };
 
 export function AppDrawer() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasAnyPermission } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [activeScreenId, setActiveScreenId] = useState('inicio');
-  const translateX = useRef(new Animated.Value(-320)).current;
+  const [activeScreenId, setActiveScreenId] = useState("inicio");
+  const [translateX] = useState(() => new Animated.Value(-320));
 
   const menuSections = useMemo(
-    () => getVisibleMenuSections(user?.user_group_id ?? null),
-    [user?.user_group_id]
+    () =>
+      getVisibleMenuSections(user?.user_group_id ?? null)
+        .map((section) => ({
+          ...section,
+          items: section.items.filter(
+            (item) =>
+              !item.permissions?.length || hasAnyPermission(item.permissions),
+          ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [user?.user_group_id, hasAnyPermission],
   );
 
   const activeScreen = useMemo(() => {
-    const selected = Object.values(moduleScreens).find((screen) => screen.id === activeScreenId);
+    const selected = Object.values(moduleScreens).find(
+      (screen) => screen.id === activeScreenId,
+    );
     return selected ?? moduleScreens.Inicio;
   }, [activeScreenId]);
 
@@ -106,17 +161,20 @@ export function AppDrawer() {
   const handleLogout = async () => {
     await logout();
     setIsOpen(false);
-    router.replace('/login');
+    router.replace("/login");
   };
 
-  const fullName = user ? `${user.user_fname} ${user.user_lname}`.trim() : 'Usuario';
-  const groupName = user?.user_group_name ?? 'Sin grupo';
-  const initials = (user ? `${user.user_fname} ${user.user_lname}` : 'US')
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('') || 'U';
+  const fullName = user
+    ? `${user.user_fname} ${user.user_lname}`.trim()
+    : "Usuario";
+  const groupName = user?.user_group_name ?? "Sin grupo";
+  const initials =
+    (user ? `${user.user_fname} ${user.user_lname}` : "US")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "U";
 
   const handleSelectModule = (route: string) => {
     const nextScreen = moduleScreens[route as keyof typeof moduleScreens];
@@ -130,7 +188,10 @@ export function AppDrawer() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Pressable style={styles.menuButton} onPress={() => setIsOpen((prev) => !prev)}>
+          <Pressable
+            style={styles.menuButton}
+            onPress={() => setIsOpen((prev) => !prev)}
+          >
             <Text style={styles.menuButtonText}>☰</Text>
           </Pressable>
 
@@ -142,22 +203,64 @@ export function AppDrawer() {
         </View>
 
         <View style={styles.content}>
-          <ModulePlaceholderScreen
-            title={activeScreen.label}
-            description={activeScreen.description}
-          />
+          {activeScreen.id === "mantenedor-pantallas" ? (
+            <MantenedorPantallasScreen />
+          ) : activeScreen.id === "usuarios-del-sistema" ? (
+            <UsersManagementScreen />
+          ) : activeScreen.id === "auditoria-permisos" ? (
+            <AuditPermissionsScreen />
+          ) : activeScreen.id === "interfaces" ? (
+            <SystemInterfacesScreen />
+          ) : activeScreen.id === "agrupacion-especialidades" ? (
+            <SpecialtyGroupingScreen />
+          ) : activeScreen.id === "vinculos-emr" ? (
+            <EmrLinksScreen />
+          ) : activeScreen.id === "vinculos-tm-informante" ? (
+            <TmReporterLinksScreen />
+          ) : (
+            <ModulePlaceholderScreen
+              title={activeScreen.label}
+              description={activeScreen.description}
+            />
+          )}
         </View>
 
-        {isOpen ? <Pressable style={styles.overlay} onPress={() => setIsOpen(false)} /> : null}
+        {isOpen ? (
+          <Pressable style={styles.overlay} onPress={() => setIsOpen(false)} />
+        ) : null}
 
         <Animated.View
-          pointerEvents={isOpen ? 'auto' : 'none'}
+          pointerEvents={isOpen ? "auto" : "none"}
           style={[styles.drawer, { transform: [{ translateX }] }]}
         >
           <View style={styles.drawerHeader}>
-            <Text style={styles.drawerBrand}>Alma Admin</Text>
-            <Text style={styles.drawerUserName}>{fullName}</Text>
-            <Text style={styles.drawerUserMeta}>{groupName}</Text>
+            <View style={styles.drawerBrandRow}>
+              <View style={styles.drawerLogoFrame}>
+                <Image
+                  source={require("../images/almaAdminLogoTransparent.png")}
+                  style={styles.drawerLogo}
+                  contentFit="contain"
+                  accessibilityLabel="Logo de Alma Médica"
+                />
+              </View>
+              <View style={styles.drawerBrandCopy}>
+                <Text style={styles.drawerBrand}>Alma Admin</Text>
+                <Text style={styles.drawerTagline}>GESTIÓN CLÍNICA</Text>
+              </View>
+            </View>
+            <View style={styles.drawerProfile}>
+              <View style={styles.drawerAvatar}>
+                <Text style={styles.drawerAvatarText}>{initials}</Text>
+              </View>
+              <View style={styles.drawerProfileCopy}>
+                <Text style={styles.drawerUserName} numberOfLines={1}>
+                  {fullName}
+                </Text>
+                <Text style={styles.drawerUserMeta} numberOfLines={1}>
+                  {groupName}
+                </Text>
+              </View>
+            </View>
           </View>
 
           <ScrollView
@@ -170,7 +273,8 @@ export function AppDrawer() {
                 <Text style={styles.sectionTitle}>{section.title}</Text>
 
                 {section.items.map((item) => {
-                  const isActive = activeScreenId === item.id || activeScreenId === item.route;
+                  const isActive =
+                    activeScreenId === item.id || activeScreenId === item.route;
 
                   return (
                     <Pressable
@@ -185,9 +289,14 @@ export function AppDrawer() {
                       <Ionicons
                         name={item.icon as any}
                         size={18}
-                        color={isActive ? '#1d4ed8' : '#475569'}
+                        color={isActive ? "#1d4ed8" : "#475569"}
                       />
-                      <Text style={[styles.menuItemText, isActive && styles.menuItemTextActive]}>
+                      <Text
+                        style={[
+                          styles.menuItemText,
+                          isActive && styles.menuItemTextActive,
+                        ]}
+                      >
                         {item.label}
                       </Text>
                     </Pressable>
@@ -219,46 +328,46 @@ const styles = StyleSheet.create({
   },
   header: {
     height: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e5e7eb",
   },
   menuButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#eef6ff',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef6ff",
   },
   menuButtonText: {
     fontSize: 22,
     color: colors.text,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   headerTitle: {
     flex: 1,
     marginHorizontal: 12,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   userBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   userBadgeText: {
-    color: '#ffffff',
-    fontWeight: '700',
+    color: "#ffffff",
+    fontWeight: "700",
     fontSize: 12,
   },
   content: {
@@ -266,46 +375,100 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    backgroundColor: "rgba(15, 23, 42, 0.3)",
   },
   drawer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
     width: 300,
     backgroundColor: colors.card,
     borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
+    borderRightColor: "#e5e7eb",
     zIndex: 10,
   },
   drawerHeader: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 20,
     paddingBottom: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#f8fafc',
+    borderBottomColor: "rgba(255,255,255,0.14)",
+    backgroundColor: colors.primaryDark,
+  },
+  drawerBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  drawerLogoFrame: {
+    width: 58,
+    height: 58,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  drawerLogo: {
+    width: 56,
+    height: 50,
+  },
+  drawerBrandCopy: {
+    flex: 1,
+  },
+  drawerTagline: {
+    marginTop: 4,
+    color: "#bfdbfe",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.2,
   },
   drawerBrand: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  drawerProfile: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 18,
+    padding: 11,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  drawerAvatar: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    borderRadius: 19,
+    backgroundColor: "#bfdbfe",
+  },
+  drawerAvatarText: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  drawerProfileCopy: {
+    flex: 1,
   },
   drawerUserName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
   },
   drawerUserMeta: {
     fontSize: 12,
     marginTop: 4,
-    color: '#475569',
+    color: "#dbeafe",
   },
   drawerBody: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
   },
   drawerBodyContent: {
     paddingHorizontal: 12,
@@ -317,60 +480,60 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#64748b',
+    fontWeight: "700",
+    color: "#64748b",
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     paddingHorizontal: 8,
     paddingBottom: 8,
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 11,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
+    borderColor: "#e2e8f0",
+    backgroundColor: "#ffffff",
   },
   menuItemActive: {
-    backgroundColor: '#ecf5ff',
-    borderColor: '#bfdbfe',
+    backgroundColor: "#ecf5ff",
+    borderColor: "#bfdbfe",
   },
   menuItemPressed: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: "#f1f5f9",
   },
   menuItemText: {
     flex: 1,
     marginLeft: 10,
     fontSize: 14,
-    color: '#0f172a',
-    fontWeight: '600',
+    color: "#0f172a",
+    fontWeight: "600",
   },
   menuItemTextActive: {
-    color: '#1d4ed8',
+    color: "#1d4ed8",
   },
   logoutContainer: {
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 18,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    borderTopColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
   },
   logoutButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#e5e7eb",
   },
   logoutText: {
-    color: '#374151',
+    color: "#374151",
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

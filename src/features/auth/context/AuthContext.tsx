@@ -8,9 +8,9 @@ import React, {
 } from 'react';
 
 import { ROLE_GROUPS } from '@/constants/roles';
-import { authService } from '@/services/authService';
+import { authService } from '@/features/auth/services/authService';
 import { sessionStore } from '@/store/sessionStore';
-import type { UserData } from '@/types/auth';
+import type { UserData } from '@/features/auth/types/auth';
 
 type AuthContextType = {
   user: UserData | null;

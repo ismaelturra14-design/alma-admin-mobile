@@ -1,6 +1,6 @@
-import { authApi } from '@/api/authApi';
+import { authApi } from '@/features/auth/api/authApi';
 import { sessionStore } from '@/store/sessionStore';
-import type { LoginResponse, UserData } from '@/types/auth';
+import type { LoginResponse, UserData } from '@/features/auth/types/auth';
 
 export const authService = {
   async login(username: string, password: string): Promise<LoginResponse> {

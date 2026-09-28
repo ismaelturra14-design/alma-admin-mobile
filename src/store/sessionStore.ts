@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-import type { UserData } from '@/types/auth';
+import type { UserData } from '@/features/auth/types/auth';
 
 const KEYS = {
   ACCESS_TOKEN: 'alma_access_token',

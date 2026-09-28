@@ -1,6 +1,6 @@
-import { Slot } from 'expo-router';
+import { Slot } from "expo-router";
 
-import { AuthProvider } from './src/context/AuthContext';
+import { AuthProvider } from "./src/features/auth/context/AuthContext";
 
 export default function App() {
   return (

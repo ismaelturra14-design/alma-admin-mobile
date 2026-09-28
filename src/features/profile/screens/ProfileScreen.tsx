@@ -1,6 +1,6 @@
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/features/auth/context/AuthContext';
 import { colors } from '@/theme/colors';
 
 export default function ProfileScreen() {

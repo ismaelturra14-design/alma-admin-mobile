@@ -38,6 +38,8 @@ Contenido recomendado:
 
 ```env
 EXPO_PUBLIC_API_BASE_URL=https://starfish-app-2-5jds5.ondigitalocean.app/api_nestjs
+# Optional: configure only when the API administrator provides an api_key.
+EXPO_PUBLIC_API_KEY=
 ```
 
 ## Ejecutar la app

@@ -1,27 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
-import { useAuth } from "@/features/auth/context/AuthContext";
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
-import { emrLinksService } from "@/features/emr-links/services/emrLinksService";
+import { Pagination } from "@/components/ui/PaginatedList";
+import { PAGE_SIZE } from "@/constants/theme";
+import { useAuth } from "@/features/auth/context/AuthContext";
 import type {
-  EmrLink,
-  EmrOption,
-  PrestationOption,
+    EmrLink,
+    EmrOption,
+    PrestationOption,
 } from "@/features/emr-links/services/emrLinksService";
+import { emrLinksService } from "@/features/emr-links/services/emrLinksService";
 import { specialtyService } from "@/features/specialty-groups/services/specialtyService";
 import type { Especialidad } from "@/features/specialty-groups/types/especialidad";
 import { colors } from "@/theme/colors";
@@ -33,8 +35,6 @@ type LinkForm = {
   categorieId: string;
   emrId: string;
 };
-
-const PAGE_SIZE = 8;
 
 function errorMessage(error: unknown, fallback: string): string {
   if (typeof error === "object" && error !== null && "response" in error) {
@@ -60,7 +60,12 @@ function emptyForm(): LinkForm {
 }
 
 function normalized(value: string): string {
-  return value.trim().toLocaleLowerCase();
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase();
 }
 
 function SearchableSelect({
@@ -260,8 +265,14 @@ export function EmrLinksScreen() {
   );
   const availablePrestations = useMemo(() => {
     if (!form.specialtyId) return [];
+
     const selectedId = Number(form.specialtyId);
     const selectedName = normalized(selectedSpecialty?.title ?? "");
+
+    if (!Number.isFinite(selectedId) || selectedId <= 0) {
+      return [];
+    }
+
     return prestations.filter((prestation) => {
       if (prestation.specialtyId !== undefined) {
         return prestation.specialtyId === selectedId;
@@ -269,7 +280,7 @@ export function EmrLinksScreen() {
       if (prestation.specialtyName) {
         return normalized(prestation.specialtyName) === selectedName;
       }
-      return true;
+      return false;
     });
   }, [form.specialtyId, prestations, selectedSpecialty?.title]);
   const prestationOptions = useMemo(
@@ -328,14 +339,6 @@ export function EmrLinksScreen() {
     (visiblePage - 1) * PAGE_SIZE,
     visiblePage * PAGE_SIZE,
   );
-  const pageNumbers = Array.from(
-    { length: Math.min(5, totalPages) },
-    (_, index) => {
-      const start = Math.max(1, Math.min(visiblePage - 2, totalPages - 4));
-      return start + index;
-    },
-  );
-
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm());
@@ -524,7 +527,7 @@ export function EmrLinksScreen() {
               <Ionicons
                 name="close"
                 size={18}
-                color={noticeIsError ? "#b91c1c" : "#047857"}
+                color={noticeIsError ? colors.error : colors.success}
               />
             </Pressable>
           </View>
@@ -542,11 +545,17 @@ export function EmrLinksScreen() {
           <Text style={styles.createButtonText}>Ingresar nuevo vínculo</Text>
         </Pressable>
 
-        {formVisible ? (
+        <Modal
+          visible={formVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={closeForm}
+        >
           <KeyboardAvoidingView
+            style={styles.modalBackdrop}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
-            <View style={styles.formCard}>
+            <View style={styles.formModal}>
               <View style={styles.formHeading}>
                 <View>
                   <Text style={styles.formTitle}>
@@ -570,6 +579,11 @@ export function EmrLinksScreen() {
                 </Pressable>
               </View>
 
+              <ScrollView
+                style={styles.formScroll}
+                contentContainerStyle={styles.formContent}
+                keyboardShouldPersistTaps="handled"
+              >
               <SearchableSelect
                 label="Especialidad"
                 placeholder="Buscar especialidad"
@@ -638,6 +652,7 @@ export function EmrLinksScreen() {
                   {formError}
                 </Text>
               ) : null}
+              </ScrollView>
               <View style={styles.formActions}>
                 <Pressable
                   style={styles.cancelButton}
@@ -664,7 +679,7 @@ export function EmrLinksScreen() {
               </View>
             </View>
           </KeyboardAvoidingView>
-        ) : null}
+        </Modal>
 
         <View style={styles.listHeading}>
           <View>
@@ -772,83 +787,7 @@ export function EmrLinksScreen() {
           </View>
         )}
 
-        <View style={styles.pagination}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Página anterior"
-            style={[
-              styles.pageButton,
-              visiblePage <= 1 && styles.pageButtonDisabled,
-            ]}
-            disabled={visiblePage <= 1}
-            onPress={() => setPage(Math.max(1, visiblePage - 1))}
-          >
-            <Ionicons
-              name="chevron-back"
-              size={17}
-              color={visiblePage <= 1 ? "#94a3b8" : colors.primaryDark}
-            />
-            <Text
-              style={[
-                styles.pageButtonText,
-                visiblePage <= 1 && styles.disabledText,
-              ]}
-            >
-              Anterior
-            </Text>
-          </Pressable>
-          <View style={styles.pageNumbers}>
-            {pageNumbers.map((number) => (
-              <Pressable
-                key={number}
-                accessibilityRole="button"
-                accessibilityLabel={`Página ${number}`}
-                accessibilityState={{ selected: visiblePage === number }}
-                style={[
-                  styles.pageNumber,
-                  visiblePage === number && styles.activePageNumber,
-                ]}
-                onPress={() => setPage(number)}
-              >
-                <Text
-                  style={[
-                    styles.pageNumberText,
-                    visiblePage === number && styles.activePageNumberText,
-                  ]}
-                >
-                  {number}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Página siguiente"
-            style={[
-              styles.pageButton,
-              visiblePage >= totalPages && styles.pageButtonDisabled,
-            ]}
-            disabled={visiblePage >= totalPages}
-            onPress={() => setPage(Math.min(totalPages, visiblePage + 1))}
-          >
-            <Text
-              style={[
-                styles.pageButtonText,
-                visiblePage >= totalPages && styles.disabledText,
-              ]}
-            >
-              Siguiente
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={17}
-              color={visiblePage >= totalPages ? "#94a3b8" : colors.primaryDark}
-            />
-          </Pressable>
-        </View>
-        <Text style={styles.pageSummary}>
-          Página {visiblePage} de {totalPages}
-        </Text>
+        <Pagination page={visiblePage} totalItems={filteredRows.length} onPageChange={setPage} />
       </ScrollView>
 
       <Modal
@@ -975,17 +914,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#ecfdf5",
+    backgroundColor: colors.successBackground,
     borderRadius: 10,
     padding: 11,
     marginBottom: 12,
     gap: 8,
   },
   noticeError: { backgroundColor: "#fef2f2" },
-  noticeText: { flex: 1, color: "#047857", fontSize: 13 },
+  noticeText: { flex: 1, color: colors.success, fontSize: 13 },
   noticeErrorText: { color: "#b91c1c" },
   createButton: {
-    backgroundColor: "#16a34a",
+    backgroundColor: colors.primary,
     minHeight: 48,
     borderRadius: 12,
     flexDirection: "row",
@@ -996,14 +935,17 @@ const styles = StyleSheet.create({
   },
   createButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
   pressed: { opacity: 0.86 },
-  formCard: {
+  formModal: {
+    maxHeight: "90%",
     backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#bfdbfe",
     padding: 15,
-    marginBottom: 18,
+    overflow: "hidden",
   },
+  formScroll: { flexShrink: 1 },
+  formContent: { gap: 4 },
   formHeading: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1099,7 +1041,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 7,
     borderRadius: 10,
-    backgroundColor: "#16a34a",
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
   },
   deleteConfirmButton: {

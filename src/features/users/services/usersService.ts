@@ -1,15 +1,17 @@
 import api from "@/api/axiosClient";
+import { emrLinksService } from "@/features/emr-links/services/emrLinksService";
 import type {
-  SystemUser,
-  UserAsset,
-  UserCatalogResult,
-  UserCatalogs,
-  UserCommune,
-  UserFacility,
-  UserFormValues,
-  UserGroupOption,
-  UserRegion,
-  UserSpecialty,
+    SystemUser,
+    UserAsset,
+    UserCatalogResult,
+    UserCatalogs,
+    UserCategory,
+    UserCommune,
+    UserFacility,
+    UserFormValues,
+    UserGroupOption,
+    UserRegion,
+    UserSpecialty,
 } from "@/features/users/types/users";
 
 type UnknownRecord = Record<string, unknown>;
@@ -52,6 +54,15 @@ function stringValue(value: unknown): string {
   return typeof value === "string" || typeof value === "number"
     ? String(value)
     : "";
+}
+
+function normalizedText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase();
 }
 
 function parseGroups(payload: unknown): UserGroupOption[] {
@@ -127,6 +138,82 @@ function parseCommunes(payload: unknown): UserCommune[] {
   });
 }
 
+function normalizeCategory(value: unknown): UserCategory | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const id = Number(
+    firstDefined(value, [
+      "pc_catid",
+      "id",
+      "categorie_id",
+      "category_id",
+      "prestacion_id",
+      "categoryId",
+      "prestacionId",
+    ]),
+  );
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  const nombre =
+    firstDefined(value, [
+      "pc_catname",
+      "name",
+      "nombre",
+      "prestacion_name",
+      "prestacion",
+      "categoria",
+      "title",
+      "label",
+      "category_name",
+    ]) ?? "Sin nombre";
+
+  const codigo = firstDefined(value, [
+    "pc_codmaipo",
+    "pc_focod",
+    "fonasa_code",
+    "codigo",
+    "code",
+    "cat_code",
+  ]);
+
+  const specialtyId = firstDefined(value, [
+    "specialty_id",
+    "pc_especialidad",
+    "speciality_id",
+    "especialidad_id",
+    "specialtyId",
+    "specialityId",
+  ]);
+  const activeValue = firstDefined(value, ["pc_active", "active"]);
+
+  const normalizedSpecialtyId =
+    typeof specialtyId === "string" || typeof specialtyId === "number"
+      ? specialtyId
+      : null;
+  const normalizedActiveValue =
+    typeof activeValue === "boolean" ||
+    typeof activeValue === "number" ||
+    typeof activeValue === "string"
+      ? activeValue
+      : true;
+
+  return {
+    id,
+    codigo:
+      typeof codigo === "string" || typeof codigo === "number"
+        ? String(codigo)
+        : undefined,
+    nombre:
+      typeof nombre === "string" ? nombre.trim() || "Sin nombre" : "Sin nombre",
+    specialty_id: normalizedSpecialtyId,
+    active: normalizedActiveValue,
+    pc_active: normalizedActiveValue,
+  };
+}
+
 async function loadCatalog<T>(
   name: string,
   request: () => Promise<{ data: unknown }>,
@@ -141,6 +228,37 @@ async function loadCatalog<T>(
   }
 }
 
+function readUserActiveStatus(value: UnknownRecord): boolean | undefined {
+  const active = firstDefined(value, [
+    "active",
+    "pc_active",
+    "is_active",
+    "user_active",
+    "status",
+    "estado",
+    "pc_status",
+  ]);
+
+  if (typeof active === "boolean") {
+    return active;
+  }
+  if (typeof active === "number") {
+    return active === 1 ? true : active === 0 ? false : undefined;
+  }
+  if (typeof active !== "string") {
+    return undefined;
+  }
+
+  const normalizedStatus = normalizedText(active);
+  if (["1", "true", "active", "activo", "s", "si", "yes"].includes(normalizedStatus)) {
+    return true;
+  }
+  if (["0", "false", "inactive", "inactivo", "n", "no", "disabled", "desactivado"].includes(normalizedStatus)) {
+    return false;
+  }
+  return undefined;
+}
+
 function normalizeUser(value: unknown): SystemUser | null {
   if (!isRecord(value)) {
     return null;
@@ -149,7 +267,6 @@ function normalizeUser(value: unknown): SystemUser | null {
   if (!Number.isInteger(id) || id <= 0) {
     return null;
   }
-  const active = value.active;
   const photoUrl = firstDefined(value, [
     "foto_url",
     "foto",
@@ -171,9 +288,27 @@ function normalizeUser(value: unknown): SystemUser | null {
     username: stringValue(value.username),
     foto_url: stringValue(photoUrl),
     firma_url: stringValue(signatureUrl),
-    active:
-      active !== false && active !== 0 && active !== "0" && active !== "false",
+    active: readUserActiveStatus(value),
   } as SystemUser;
+}
+
+async function loadUserById(id: number): Promise<SystemUser> {
+  const response = await api.get<unknown>(`/users/${id}`);
+  const user = normalizeUser(unwrapPayload(response.data));
+  if (!user) {
+    throw new Error("La respuesta del detalle de usuario no es válida.");
+  }
+
+  const usersResponse = await api.get<unknown>("/users");
+  const listRecord = asRows(usersResponse.data).find(
+    (item) => Number(item.id) === id,
+  );
+  const listStatus = listRecord ? readUserActiveStatus(listRecord) : undefined;
+  if (listStatus !== undefined) {
+    user.active = listStatus;
+  }
+
+  return user;
 }
 
 function appendText(payload: FormData, key: string, value: string): void {
@@ -284,13 +419,68 @@ const multipartConfig = {
   headers: { "Content-Type": "multipart/form-data" },
 };
 
-export const usersService = {
-  async getUsers(): Promise<SystemUser[]> {
-    const response = await api.get<unknown>("/users");
+export type UserListParams = {
+  page: number;
+  limit: number;
+  search: string;
+  status: "all" | "active" | "inactive";
+  authorized: "all" | "authorized" | "unauthorized";
+  hasRut: boolean | null;
+};
+
+export type UserListResult = {
+  users: SystemUser[];
+  total: number;
+  serverPaginated: boolean;
+};
+
+function readUserListResult(payload: unknown): UserListResult {
+  const root = isRecord(payload) ? payload : null;
+  const rowsPayload = root
+    ? firstDefined(root, ["data", "items", "results", "users"])
+    : payload;
+  const users = asRows(rowsPayload)
+    .map(normalizeUser)
+    .filter((user): user is SystemUser => user !== null);
+  const rawTotal = root
+    ? firstDefined(root, ["total", "totalItems", "totalCount", "count"])
+    : undefined;
+  const total = Number(rawTotal);
+
+  return {
+    users,
+    total: Number.isFinite(total) ? total : users.length,
+    serverPaginated: Number.isFinite(total),
+  };
+}
+
+async function getUsers(): Promise<SystemUser[]>;
+async function getUsers(params: UserListParams): Promise<UserListResult>;
+async function getUsers(
+  params?: UserListParams,
+): Promise<SystemUser[] | UserListResult> {
+  const response = await api.get<unknown>("/users", {
+    params: params
+      ? {
+          page: params.page,
+          limit: params.limit,
+          search: params.search,
+          status: params.status,
+          authorized: params.authorized,
+          hasRut: params.hasRut,
+        }
+      : undefined,
+  });
+  if (!params) {
     return asRows(response.data)
       .map(normalizeUser)
       .filter((user): user is SystemUser => user !== null);
-  },
+  }
+  return readUserListResult(response.data);
+}
+
+export const usersService = {
+  getUsers,
 
   async getUsersByGroup(groupId: number): Promise<SystemUser[]> {
     if (!Number.isInteger(groupId) || groupId <= 0) {
@@ -303,12 +493,7 @@ export const usersService = {
   },
 
   async getUser(id: number): Promise<SystemUser> {
-    const response = await api.get<unknown>(`/users/${id}`);
-    const user = normalizeUser(unwrapPayload(response.data));
-    if (!user) {
-      throw new Error("La respuesta del detalle de usuario no es válida.");
-    }
-    return user;
+    return loadUserById(id);
   },
 
   async getCatalogs(): Promise<UserCatalogResult> {
@@ -369,5 +554,66 @@ export const usersService = {
 
   async updateUserStatus(id: number, active: boolean): Promise<void> {
     await api.patch(`/users/${id}/status`, { active: active ? 1 : 0 });
+  },
+
+  async getUserCategories(id: number): Promise<UserCategory[]> {
+    const response = await api.get<unknown>(`/users/${id}/categories`);
+    return asRows(response.data)
+      .map(normalizeCategory)
+      .filter((category): category is UserCategory => category !== null);
+  },
+
+  async getSpecialtyCategories(
+    specialtyId: number,
+    specialtyName = "",
+  ): Promise<UserCategory[]> {
+    const selectedId = Number(specialtyId);
+    const selectedName = normalizedText(specialtyName);
+    const prestations = await emrLinksService.getPrestations();
+
+    return prestations.flatMap((prestation) => {
+      const matchesSpecialty =
+        prestation.specialtyId !== undefined
+          ? prestation.specialtyId === selectedId
+          : Boolean(
+              prestation.specialtyName &&
+                normalizedText(prestation.specialtyName) === selectedName,
+            );
+
+      return matchesSpecialty
+        ? [
+            {
+              id: prestation.id,
+              nombre: prestation.name,
+              specialty_id: prestation.specialtyId ?? selectedId,
+              active: true,
+              pc_active: true,
+            },
+          ]
+        : [];
+    });
+  },
+
+  async updateUserCategories(
+    id: number,
+    categoryIds: (number | string)[],
+  ): Promise<void> {
+    const user = await loadUserById(id);
+    if (user.active === false) {
+      throw new Error(
+        "No se pueden asignar prestaciones a un usuario inactivo. Actívalo e inténtalo nuevamente.",
+      );
+    }
+    if (user.active !== true) {
+      throw new Error(
+        "No se pudo confirmar el estado del usuario. Actualiza el listado e inténtalo nuevamente.",
+      );
+    }
+
+    const normalizedIds = categoryIds
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    await api.put(`/users/${id}/categories`, { categoryIds: normalizedIds });
   },
 };

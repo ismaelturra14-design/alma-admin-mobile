@@ -9,12 +9,21 @@ import React, {
 
 import { ROLE_GROUPS } from '@/constants/roles';
 import { authService } from '@/features/auth/services/authService';
+import {
+    subscribeToSessionExpired,
+    subscribeToTokensRefreshed,
+} from '@/features/auth/services/authSessionEvents';
+import type { AuthTokens, UserData } from '@/features/auth/types/auth';
 import { sessionStore } from '@/store/sessionStore';
-import type { UserData } from '@/features/auth/types/auth';
 
 type AuthContextType = {
   user: UserData | null;
+  tokens: AuthTokens | null;
+  user_group_id: number | null;
+  user_group_name: string | null;
+  permissions: string[];
   isAuthenticated: boolean;
+  isHydrating: boolean;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -27,30 +36,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
+  const [tokens, setTokens] = useState<AuthTokens | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isHydrating, setIsHydrating] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
 
     const bootstrap = async () => {
       try {
-        const [storedUser, token] = await Promise.all([
+        const [storedUser, accessToken, refreshToken] = await Promise.all([
           sessionStore.getUserData(),
           sessionStore.getAccessToken(),
+          sessionStore.getRefreshToken(),
         ]);
 
         if (!isMounted) {
           return;
         }
 
-        if (storedUser && token) {
+        if (storedUser && accessToken && refreshToken) {
           setUser(storedUser);
+          setTokens({ access_token: accessToken, refresh_token: refreshToken });
           setIsAuthenticated(true);
+        } else {
+          await sessionStore.clear();
         }
       } finally {
         if (isMounted) {
-          setLoading(false);
+          setIsHydrating(false);
         }
       }
     };
@@ -62,16 +76,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(
+    () =>
+      subscribeToSessionExpired(() => {
+        setUser(null);
+        setTokens(null);
+        setIsAuthenticated(false);
+      }),
+    [],
+  );
+
+  useEffect(
+    () => subscribeToTokensRefreshed(setTokens),
+    [],
+  );
+
   const login = useCallback(async (username: string, password: string) => {
+    setUser(null);
+    setTokens(null);
+    setIsAuthenticated(false);
+    await sessionStore.clear();
+
     const response = await authService.login(username, password);
     setUser(response.data);
+    setTokens(response.tokens);
     setIsAuthenticated(true);
   }, []);
 
   const logout = useCallback(async () => {
-    await authService.logout();
     setUser(null);
+    setTokens(null);
     setIsAuthenticated(false);
+    await authService.logout();
   }, []);
 
   const hasPermission = useCallback(
@@ -105,15 +141,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextType>(
     () => ({
       user,
+      tokens,
+      user_group_id: user?.user_group_id ?? null,
+      user_group_name: user?.user_group_name ?? null,
+      permissions: user?.permissions ?? [],
       isAuthenticated,
-      loading,
+      isHydrating,
+      loading: isHydrating,
       login,
       logout,
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,
     }),
-    [user, isAuthenticated, loading, login, logout, hasPermission, hasAnyPermission, hasAllPermissions]
+    [user, tokens, isAuthenticated, isHydrating, login, logout, hasPermission, hasAnyPermission, hasAllPermissions]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

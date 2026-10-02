@@ -1,36 +1,36 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
-import { UserFormModal } from "@/features/users/components/UserFormModal";
-import { ModuleBanner } from "@/components/ui/ModuleBanner";
+import { PaginatedList } from "@/components/ui/PaginatedList";
 import { PERMISSIONS } from "@/constants/permissions";
+import { PAGE_SIZE } from "@/constants/theme";
 import { useAuth } from "@/features/auth/context/AuthContext";
+import { UserDetailScreen } from "@/features/users/components/UserDetailScreen";
+import { UserFormModal } from "@/features/users/components/UserFormModal";
 import { usersService } from "@/features/users/services/usersService";
-import { colors } from "@/theme/colors";
 import type {
-  SystemUser,
-  UserCatalogs,
-  UserFormValues,
+    SystemUser,
+    UserCatalogs,
+    UserFormValues,
 } from "@/features/users/types/users";
 import {
-  validateUserForm,
-  type UserFormErrors,
-  type UserFormField,
-  type UserFormMode,
+    validateUserForm,
+    type UserFormErrors,
+    type UserFormField,
+    type UserFormMode,
 } from "@/features/users/utils/userValidation";
-
-const PAGE_SIZE = 10;
+import { colors } from "@/theme/colors";
 
 const emptyCatalogs: UserCatalogs = {
   groups: [],
@@ -130,23 +130,54 @@ function getRequestMessage(error: unknown, fallback: string): string {
 
 function displayName(user: SystemUser): string {
   return (
-    `${user.fname ?? ""} ${user.lname ?? ""}`.trim() ||
+    `${user.fname ?? ""} ${user.mname ?? ""} ${user.lname ?? ""}`.trim() ||
     user.username ||
     "Usuario sin nombre"
   );
+}
+
+type UserFilter =
+  | "all"
+  | "active"
+  | "inactive"
+  | "authorized"
+  | "unauthorized"
+  | "no-rut";
+
+const userFilters: { id: UserFilter; label: string }[] = [
+  { id: "all", label: "Todos" },
+  { id: "active", label: "Activos" },
+  { id: "inactive", label: "Inactivos" },
+  { id: "authorized", label: "Autorizados" },
+  { id: "unauthorized", label: "No autorizados" },
+  { id: "no-rut", label: "Sin RUT" },
+];
+
+function normalizedSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .trim();
 }
 
 export function UsersManagementScreen() {
   const { hasPermission } = useAuth();
   const canCreateUsers = hasPermission(PERMISSIONS.CREATE_USERS);
   const [users, setUsers] = useState<SystemUser[]>([]);
+  const [photoRefreshToken, setPhotoRefreshToken] = useState(0);
   const [catalogs, setCatalogs] = useState<UserCatalogs>(emptyCatalogs);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [userFilter, setUserFilter] = useState<UserFilter>("all");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [listFetching, setListFetching] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverPaginated, setServerPaginated] = useState(false);
   const [listError, setListError] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
 
   const [formVisible, setFormVisible] = useState(false);
@@ -158,15 +189,43 @@ export function UsersManagementScreen() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
 
   const [statusTarget, setStatusTarget] = useState<SystemUser | null>(null);
   const [statusError, setStatusError] = useState("");
   const [changingStatus, setChangingStatus] = useState(false);
+  const [menuTarget, setMenuTarget] = useState<SystemUser | null>(null);
+  const [pendingUndo, setPendingUndo] = useState<{
+    userId: number;
+    previousActive: boolean;
+    nextActive: boolean;
+  } | null>(null);
 
   const loadUsers = useCallback(async () => {
-    setListError("");
     try {
-      setUsers(await usersService.getUsers());
+      const result = await usersService.getUsers({
+        page,
+        limit: PAGE_SIZE,
+        search: debouncedSearch,
+        status:
+          userFilter === "active"
+            ? "active"
+            : userFilter === "inactive"
+              ? "inactive"
+              : "all",
+        authorized:
+          userFilter === "authorized"
+            ? "authorized"
+            : userFilter === "unauthorized"
+              ? "unauthorized"
+              : "all",
+        hasRut: userFilter === "no-rut" ? false : null,
+      });
+      setListError("");
+      setUsers(result.users);
+      setServerTotal(result.total);
+      setServerPaginated(result.serverPaginated);
+      setPhotoRefreshToken((current) => current + 1);
     } catch (error) {
       setListError(
         getRequestMessage(
@@ -175,10 +234,9 @@ export function UsersManagementScreen() {
         ),
       );
     }
-  }, []);
+  }, [debouncedSearch, page, userFilter]);
 
   const loadCatalogs = useCallback(async () => {
-    setCatalogLoading(true);
     try {
       const result = await usersService.getCatalogs();
       setCatalogs(result.catalogs);
@@ -192,44 +250,80 @@ export function UsersManagementScreen() {
     }
   }, []);
 
+  const reloadCatalogs = () => {
+    setCatalogLoading(true);
+    return loadCatalogs();
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (search !== debouncedSearch) {
+        setListFetching(true);
+        setDebouncedSearch(search);
+        setPage(1);
+      }
+    }, 150);
+    return () => clearTimeout(timeout);
+  }, [debouncedSearch, search]);
+
   useEffect(() => {
     let isMounted = true;
-    const load = async () => {
-      setLoading(true);
-      await Promise.all([loadUsers(), loadCatalogs()]);
-      if (isMounted) {
-        setLoading(false);
-      }
-    };
-    void load();
+    const timeout = setTimeout(() => {
+      void loadUsers().finally(() => {
+        if (isMounted) {
+          setLoading(false);
+          setListFetching(false);
+        }
+      });
+    }, 0);
     return () => {
       isMounted = false;
+      clearTimeout(timeout);
     };
-  }, [loadCatalogs, loadUsers]);
+  }, [loadUsers]);
+
+  useEffect(() => {
+    void loadCatalogs();
+  }, [loadCatalogs]);
+
+  useEffect(() => {
+    if (!pendingUndo) {
+      return;
+    }
+    const timeout = setTimeout(() => setPendingUndo(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [pendingUndo]);
 
   const filteredUsers = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase();
-    if (!query) {
-      return users;
-    }
-    return users.filter((user) =>
-      `${user.fname ?? ""} ${user.mname ?? ""} ${user.lname ?? ""} ${user.federaltaxid ?? ""} ${user.username}`
-        .toLocaleLowerCase()
-        .includes(query),
-    );
-  }, [users, search]);
+    const query = normalizedSearch(serverPaginated ? debouncedSearch : search);
+    return users.filter((user) => {
+      const active = isEnabled(user.active);
+      const authorized = isEnabled(user.authorized);
+      const matchesQuery =
+        !query ||
+        normalizedSearch(
+          `${user.fname ?? ""} ${user.mname ?? ""} ${user.lname ?? ""} ${user.federaltaxid ?? ""} ${user.username}`,
+        ).includes(query);
+      const matchesFilter =
+        userFilter === "all" ||
+        (userFilter === "active" && active) ||
+        (userFilter === "inactive" && !active) ||
+        (userFilter === "authorized" && authorized) ||
+        (userFilter === "unauthorized" && !authorized) ||
+        (userFilter === "no-rut" && !user.federaltaxid?.trim());
+      return matchesQuery && matchesFilter;
+    });
+  }, [debouncedSearch, search, serverPaginated, userFilter, users]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const visiblePage = Math.min(page, totalPages);
-  const visibleUsers = filteredUsers.slice(
-    (visiblePage - 1) * PAGE_SIZE,
-    visiblePage * PAGE_SIZE,
-  );
-
+  const displayedUsers = filteredUsers;
+  const totalItems = serverPaginated ? serverTotal : filteredUsers.length;
   const refresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadUsers(), loadCatalogs()]);
-    setRefreshing(false);
+    setListFetching(true);
+    await Promise.all([loadUsers(), reloadCatalogs()]).finally(() => {
+      setRefreshing(false);
+      setListFetching(false);
+    });
   };
 
   const openCreate = () => {
@@ -347,12 +441,10 @@ export function UsersManagementScreen() {
     }
   };
 
-  const changeStatus = async () => {
-    if (!statusTarget) {
+  const changeUserStatus = async (user: SystemUser, nextActive: boolean) => {
+    if (!canCreateUsers) {
       return;
     }
-    const user = statusTarget;
-    const nextActive = !isEnabled(user.active);
     setChangingStatus(true);
     setStatusError("");
     try {
@@ -362,13 +454,92 @@ export function UsersManagementScreen() {
           entry.id === user.id ? { ...entry, active: nextActive } : entry,
         ),
       );
+      if (serverPaginated && (userFilter === "active" || userFilter === "inactive")) {
+        const matchesStatusFilter = (active: boolean) =>
+          userFilter === "active" ? active : !active;
+        setServerTotal((current) =>
+          Math.max(
+            0,
+            current +
+              Number(matchesStatusFilter(nextActive)) -
+              Number(matchesStatusFilter(isEnabled(user.active))),
+          ),
+        );
+      }
+      setPendingUndo({
+        userId: user.id,
+        previousActive: !nextActive,
+        nextActive,
+      });
       setStatusTarget(null);
     } catch (error) {
-      setStatusError(
-        getRequestMessage(error, "No se pudo cambiar el estado del usuario."),
+      const message = getRequestMessage(
+        error,
+        "No se pudo cambiar el estado del usuario.",
       );
+      if (statusTarget?.id === user.id) {
+        setStatusError(message);
+      } else {
+        setListError(message);
+      }
     } finally {
       setChangingStatus(false);
+    }
+  };
+
+  const changeStatus = () => {
+    if (statusTarget) {
+      void changeUserStatus(statusTarget, !isEnabled(statusTarget.active));
+    }
+  };
+
+  const undoStatusChange = async () => {
+    if (!pendingUndo || !canCreateUsers) {
+      return;
+    }
+    const undo = pendingUndo;
+    setPendingUndo(null);
+    try {
+      await usersService.updateUserStatus(undo.userId, undo.previousActive);
+      setUsers((current) =>
+        current.map((user) =>
+          user.id === undo.userId
+            ? { ...user, active: undo.previousActive }
+            : user,
+        ),
+      );
+      if (serverPaginated && (userFilter === "active" || userFilter === "inactive")) {
+        const matchesStatusFilter = (active: boolean) =>
+          userFilter === "active" ? active : !active;
+        setServerTotal((current) =>
+          Math.max(
+            0,
+            current +
+              Number(matchesStatusFilter(undo.previousActive)) -
+              Number(matchesStatusFilter(undo.nextActive)),
+          ),
+        );
+      }
+    } catch (error) {
+      setListError(
+        getRequestMessage(error, "No se pudo deshacer el cambio de estado."),
+      );
+    }
+  };
+
+  const selectMenuAction = (action: "edit" | "status") => {
+    if (!menuTarget) {
+      return;
+    }
+    const user = menuTarget;
+    setMenuTarget(null);
+    if (action === "edit") {
+      void openEdit(user);
+    } else if (isEnabled(user.active)) {
+      setStatusTarget(user);
+      setStatusError("");
+    } else {
+      void changeUserStatus(user, true);
     }
   };
 
@@ -395,8 +566,15 @@ export function UsersManagementScreen() {
           </Pressable>
         </View>
       ) : null}
-      <FlatList
-        data={visibleUsers}
+      <PaginatedList
+        data={displayedUsers}
+        mode={serverPaginated ? "server" : "client"}
+        page={page}
+        totalItems={totalItems}
+        onPageChange={(nextPage) => {
+          setListFetching(true);
+          setPage(nextPage);
+        }}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
@@ -409,109 +587,120 @@ export function UsersManagementScreen() {
         }
         ListHeaderComponent={
           <View>
-            <ModuleBanner
-              title="Usuarios del sistema"
-              subtitle="Administra cuentas, datos y estado de acceso."
-              icon="people-outline"
-            />
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.createButton,
-                !canCreateUsers && styles.disabledButton,
-                pressed && canCreateUsers && styles.pressed,
-              ]}
-              onPress={openCreate}
-              disabled={!canCreateUsers}
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Ionicons
+                  name="search-outline"
+                  size={19}
+                  color={colors.textSecondary}
+                />
+                <TextInput
+                  accessibilityLabel="Buscar por nombre, RUT o usuario"
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Buscar nombre, RUT o usuario"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+                {listFetching ? (
+                  <ActivityIndicator
+                    accessibilityLabel="Buscando usuarios"
+                    size="small"
+                    color={colors.primary}
+                  />
+                ) : null}
+                {search ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Limpiar búsqueda"
+                    onPress={() => setSearch("")}
+                    style={styles.clearSearchButton}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={19}
+                      color={colors.textSecondary}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Agregar usuario"
+                style={({ pressed }) => [
+                  styles.addButton,
+                  !canCreateUsers && styles.disabledButton,
+                  pressed && canCreateUsers && styles.pressed,
+                ]}
+                onPress={openCreate}
+                disabled={!canCreateUsers}
+              >
+                <Ionicons name="add" size={25} color="#fff" />
+              </Pressable>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
             >
-              <Ionicons name="person-add-outline" size={19} color="#fff" />
-              <Text style={styles.createButtonText}>Agregar usuario</Text>
-            </Pressable>
-            {!canCreateUsers ? (
-              <Text style={styles.permissionHint}>
-                Tu cuenta puede consultar y cambiar estados, pero no tiene
-                permiso para crear o editar.
-              </Text>
-            ) : null}
-            {catalogLoading ? (
+              {userFilters.map((filter) => {
+                const selected = filter.id === userFilter;
+                return (
+                  <Pressable
+                    key={filter.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => {
+                      if (!selected) {
+                        setListFetching(true);
+                        setUserFilter(filter.id);
+                        setPage(1);
+                      }
+                    }}
+                    style={[
+                      styles.filterChip,
+                      selected && styles.filterChipSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        selected && styles.filterChipTextSelected,
+                      ]}
+                    >
+                      {filter.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {catalogLoading || catalogError ? (
               <View style={styles.catalogNotice}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                {catalogLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={17}
+                    color="#92400e"
+                  />
+                )}
                 <Text style={styles.catalogNoticeText}>
-                  Cargando grupos y catálogos…
+                  {catalogLoading
+                    ? "Cargando catálogos…"
+                    : catalogError}
                 </Text>
               </View>
             ) : null}
-            {catalogError ? (
-              <View style={styles.catalogWarning}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={17}
-                  color="#92400e"
-                />
-                <Text style={styles.catalogWarningText}>{catalogError}</Text>
-              </View>
-            ) : null}
-            <View style={styles.searchBox}>
-              <Ionicons
-                name="search-outline"
-                size={19}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                accessibilityLabel="Buscar por nombre, RUT o usuario"
-                value={search}
-                onChangeText={(value) => {
-                  setSearch(value);
-                  setPage(1);
-                }}
-                placeholder="Buscar nombre, RUT o usuario"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="none"
-                returnKeyType="search"
-                style={styles.searchInput}
-              />
-              {search ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Limpiar búsqueda"
-                  onPress={() => {
-                    setSearch("");
-                    setPage(1);
-                  }}
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={19}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.countText}>
-                {filteredUsers.length}{" "}
-                {filteredUsers.length === 1 ? "usuario" : "usuarios"}
-              </Text>
-              <Text style={styles.pageText}>
-                Página {visiblePage} de {totalPages}
-              </Text>
-            </View>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons
-              name={search ? "search-outline" : "people-outline"}
-              size={36}
-              color="#94a3b8"
-            />
+            <Ionicons name="people-outline" size={34} color="#64748b" />
             <Text style={styles.stateTitle}>
-              {search ? "Sin resultados" : "Aún no hay usuarios"}
-            </Text>
-            <Text style={styles.stateBody}>
-              {search
-                ? "Prueba con otro nombre, RUT o username."
-                : "Los usuarios aparecerán aquí cuando estén disponibles."}
+              No encontramos usuarios con esos filtros
             </Text>
           </View>
         }
@@ -519,171 +708,203 @@ export function UsersManagementScreen() {
           const active = isEnabled(item.active);
           const authorized = isEnabled(item.authorized);
           return (
-            <View style={styles.userCard}>
-              <View style={[styles.avatar, !active && styles.avatarInactive]}>
-                <Text style={styles.avatarText}>
-                  {(
-                    item.fname?.[0] ??
-                    item.username?.[0] ??
-                    "U"
-                  ).toLocaleUpperCase()}
-                  {item.lname?.[0]?.toLocaleUpperCase() ?? ""}
-                </Text>
-              </View>
-              <View style={styles.userDetails}>
-                <Text style={styles.userName} numberOfLines={1}>
-                  {displayName(item)}
-                </Text>
-                <Text style={styles.username} numberOfLines={1}>
-                  @{item.username}
-                </Text>
-                <View style={styles.userMetaRow}>
-                  <View style={styles.metaPill}>
-                    <Text style={styles.metaPillText}>
-                      {item.federaltaxid || "Sin RUT"}
-                    </Text>
-                  </View>
+            <View
+              style={[
+                styles.userCard,
+                !active && styles.userCardInactive,
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Ver detalle de ${displayName(item)}`}
+                style={({ pressed }) => [
+                  styles.userCardMain,
+                  pressed && styles.userCardPressed,
+                ]}
+                onPress={() => setSelectedUser(item)}
+              >
+                <View
+                  style={[styles.avatar, !active && styles.avatarInactive]}
+                >
+                  <Text
+                    style={[
+                      styles.avatarText,
+                      !active && styles.avatarTextInactive,
+                    ]}
+                  >
+                    {(item.fname?.[0] ?? item.username?.[0] ?? "U")
+                      .toLocaleUpperCase()}
+                    {item.lname?.[0]?.toLocaleUpperCase() ?? ""}
+                  </Text>
+                </View>
+                <View style={styles.userDetails}>
+                  <Text
+                    style={[
+                      styles.userName,
+                      !active && styles.userNameInactive,
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {displayName(item)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.userData,
+                      !active && styles.userDataInactive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    @{item.username} ·{" "}
+                    {item.federaltaxid?.trim() || (
+                      <Text style={styles.noRutData}>Sin RUT</Text>
+                    )}
+                  </Text>
                   <View
                     style={[
-                      styles.metaPill,
+                      styles.authorizationChip,
                       authorized
-                        ? styles.authorizedPill
-                        : styles.notAuthorizedPill,
+                        ? styles.authorizedChip
+                        : styles.notAuthorizedChip,
                     ]}
                   >
                     <Text
                       style={[
-                        styles.metaPillText,
-                        authorized ? styles.authorizedText : null,
+                        styles.authorizationText,
+                        authorized
+                          ? styles.authorizedText
+                          : styles.notAuthorizedText,
                       ]}
                     >
                       {authorized ? "Autorizado" : "No autorizado"}
                     </Text>
                   </View>
                 </View>
-              </View>
+              </Pressable>
               <View style={styles.cardActions}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${active ? "Desactivar" : "Activar"} ${item.username}`}
+                  accessibilityLabel={`Ver detalle de ${displayName(item)}`}
+                  onPress={() => setSelectedUser(item)}
                   style={[
-                    styles.statusAction,
-                    active ? styles.activeAction : styles.inactiveAction,
+                    styles.statusBadge,
+                    active ? styles.activeBadge : styles.inactiveBadge,
                   ]}
-                  onPress={() => {
-                    setStatusTarget(item);
-                    setStatusError("");
-                  }}
                 >
-                  <Ionicons
-                    name={active ? "power-outline" : "power"}
-                    size={17}
-                    color={active ? "#047857" : colors.textSecondary}
+                  <View
+                    style={[
+                      styles.statusDot,
+                      active ? styles.activeDot : styles.inactiveDot,
+                    ]}
                   />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      active
+                        ? styles.activeStatusText
+                        : styles.inactiveStatusText,
+                    ]}
+                  >
+                    {active ? "Activo" : "Inactivo"}
+                  </Text>
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Editar ${item.username}`}
-                  style={[
-                    styles.editAction,
-                    !canCreateUsers && styles.editActionDisabled,
-                  ]}
-                  onPress={() => void openEdit(item)}
-                  disabled={!canCreateUsers}
+                  accessibilityLabel={`Más acciones para ${displayName(item)}`}
+                  style={styles.menuButton}
+                  onPress={() => setMenuTarget(item)}
                 >
                   <Ionicons
-                    name="create-outline"
-                    size={18}
-                    color={canCreateUsers ? colors.primaryDark : "#94a3b8"}
+                    name="ellipsis-vertical"
+                    size={20}
+                    color={colors.textSecondary}
                   />
                 </Pressable>
-              </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  active ? styles.activeBadge : styles.inactiveBadge,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.statusDot,
-                    active ? styles.activeDot : styles.inactiveDot,
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    active
-                      ? styles.activeStatusText
-                      : styles.inactiveStatusText,
-                  ]}
-                >
-                  {active ? "Activo" : "Inactivo"}
-                </Text>
               </View>
             </View>
           );
         }}
-        ListFooterComponent={
-          totalPages > 1 ? (
-            <View style={styles.pagination}>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.pageButton,
-                  visiblePage <= 1 && styles.pageButtonDisabled,
-                ]}
-                disabled={visiblePage <= 1}
-                onPress={() => setPage(Math.max(1, visiblePage - 1))}
-              >
-                <Ionicons
-                  name="chevron-back"
-                  size={18}
-                  color={visiblePage <= 1 ? "#94a3b8" : colors.primaryDark}
-                />
-                <Text
-                  style={[
-                    styles.pageButtonText,
-                    visiblePage <= 1 && styles.pageButtonTextDisabled,
-                  ]}
-                >
-                  Anterior
-                </Text>
-              </Pressable>
-              <Text style={styles.paginationText}>
-                {visiblePage} / {totalPages}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                style={[
-                  styles.pageButton,
-                  visiblePage >= totalPages && styles.pageButtonDisabled,
-                ]}
-                disabled={visiblePage >= totalPages}
-                onPress={() => setPage(Math.min(totalPages, visiblePage + 1))}
-              >
-                <Text
-                  style={[
-                    styles.pageButtonText,
-                    visiblePage >= totalPages && styles.pageButtonTextDisabled,
-                  ]}
-                >
-                  Siguiente
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={
-                    visiblePage >= totalPages ? "#94a3b8" : colors.primaryDark
-                  }
-                />
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.footerSpace} />
-          )
-        }
       />
+
+      {pendingUndo ? (
+        <View style={styles.undoBanner}>
+          <Text style={styles.undoText}>
+            Usuario {pendingUndo.nextActive ? "reactivado" : "desactivado"}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void undoStatusChange()}
+            style={styles.undoButton}
+          >
+            <Text style={styles.undoButtonText}>Deshacer</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <Modal
+        visible={menuTarget !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMenuTarget(null)}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar menú"
+          style={styles.sheetBackdrop}
+          onPress={() => setMenuTarget(null)}
+        >
+          <Pressable style={styles.actionSheet} onPress={() => undefined}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle} numberOfLines={2}>
+              {menuTarget ? displayName(menuTarget) : ""}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.sheetAction}
+              onPress={() => selectMenuAction("edit")}
+              disabled={!canCreateUsers}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+              <Text
+                style={[
+                  styles.sheetActionText,
+                  !canCreateUsers && styles.sheetActionDisabled,
+                ]}
+              >
+                Editar usuario
+              </Text>
+            </Pressable>
+            <View style={styles.sheetDivider} />
+            <Pressable
+              accessibilityRole="button"
+              style={styles.sheetAction}
+              onPress={() => selectMenuAction("status")}
+              disabled={changingStatus || !canCreateUsers}
+            >
+              <Ionicons
+                name={
+                  isEnabled(menuTarget?.active)
+                    ? "person-remove-outline"
+                    : "person-add-outline"
+                }
+                size={20}
+                color={
+                  isEnabled(menuTarget?.active) ? "#b42318" : colors.primary
+                }
+              />
+              <Text
+                style={[
+                  styles.sheetActionText,
+                  isEnabled(menuTarget?.active) && styles.destructiveActionText,
+                ]}
+              >
+                {isEnabled(menuTarget?.active)
+                  ? "Desactivar usuario"
+                  : "Reactivar usuario"}
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <UserFormModal
         visible={formVisible}
@@ -701,7 +922,7 @@ export function UsersManagementScreen() {
         onClose={closeForm}
         onSubmit={() => void submitForm()}
         onRetryDetail={retryUserDetail}
-        onRetryCatalogs={() => void loadCatalogs()}
+        onRetryCatalogs={() => void reloadCatalogs()}
       />
 
       <Modal
@@ -727,7 +948,7 @@ export function UsersManagementScreen() {
                     : "checkmark-circle-outline"
                 }
                 size={26}
-                color={isEnabled(statusTarget?.active) ? "#b91c1c" : "#047857"}
+                color={isEnabled(statusTarget?.active) ? colors.error : colors.success}
               />
             </View>
             <Text style={styles.confirmTitle}>
@@ -736,12 +957,11 @@ export function UsersManagementScreen() {
                 : "Activar usuario"}
             </Text>
             <Text style={styles.confirmText}>
-              ¿Confirmas{" "}
-              {isEnabled(statusTarget?.active) ? "desactivar" : "activar"} a{" "}
+              ¿Desactivar a{" "}
               <Text style={styles.confirmUserName}>
-                {statusTarget ? displayName(statusTarget) : ""}
-              </Text>{" "}
-              (@{statusTarget?.username})?
+                {statusTarget ? ` ${displayName(statusTarget)}` : ""}
+              </Text>
+              ? No podrá iniciar sesión hasta que lo reactives.
             </Text>
             {statusError ? (
               <Text accessibilityRole="alert" style={styles.statusError}>
@@ -763,16 +983,14 @@ export function UsersManagementScreen() {
                     ? styles.destructiveConfirm
                     : styles.positiveConfirm,
                 ]}
-                onPress={() => void changeStatus()}
-                disabled={changingStatus}
+                onPress={changeStatus}
+                disabled={changingStatus || !canCreateUsers}
               >
                 {changingStatus ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.confirmStatusText}>
-                    {isEnabled(statusTarget?.active)
-                      ? "Sí, desactivar"
-                      : "Sí, activar"}
+                    Desactivar
                   </Text>
                 )}
               </Pressable>
@@ -780,6 +998,15 @@ export function UsersManagementScreen() {
           </View>
         </View>
       </Modal>
+
+      {selectedUser ? (
+        <UserDetailScreen
+          user={selectedUser}
+          catalogs={catalogs}
+          photoRefreshToken={photoRefreshToken}
+          onBack={() => setSelectedUser(null)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -792,13 +1019,96 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 25,
   },
+  searchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  clearSearchButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: "#2F6B94",
+  },
+  filterRow: { gap: 8, paddingVertical: 12, paddingRight: 4 },
+  filterChip: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "#a8bac8",
+    borderRadius: 20,
+    backgroundColor: "#fff",
+  },
+  filterChipSelected: { borderColor: "#2F6B94", backgroundColor: "#2F6B94" },
+  filterChipText: { color: "#334155", fontSize: 13, fontWeight: "600" },
+  filterChipTextSelected: { color: "#fff" },
+  undoBanner: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#d7e2eb",
+    backgroundColor: "#f1f8fc",
+  },
+  undoText: { color: "#334155", fontSize: 13, fontWeight: "600" },
+  undoButton: {
+    minWidth: 72,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  undoButtonText: { color: "#245675", fontSize: 14, fontWeight: "700" },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15, 23, 42, 0.42)",
+  },
+  actionSheet: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    backgroundColor: "#fff",
+  },
+  sheetHandle: {
+    width: 38,
+    height: 4,
+    alignSelf: "center",
+    marginBottom: 14,
+    borderRadius: 2,
+    backgroundColor: "#cbd5e1",
+  },
+  sheetTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  sheetAction: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+  },
+  sheetActionText: { color: "#243746", fontSize: 15, fontWeight: "600" },
+  sheetActionDisabled: { color: "#64748b" },
+  sheetDivider: { height: 1, backgroundColor: "#e2e8f0" },
+  destructiveActionText: { color: "#9f1d17" },
   hero: {
     flexDirection: "row",
     alignItems: "center",
     padding: 17,
     marginBottom: 14,
     borderRadius: 18,
-    backgroundColor: "#0b5e93",
+    backgroundColor: colors.primaryDark,
   },
   heroIcon: {
     width: 48,
@@ -826,7 +1136,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     borderRadius: 12,
-    backgroundColor: "#059669",
+    backgroundColor: colors.primary,
     marginBottom: 12,
   },
   createButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
@@ -863,13 +1173,14 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   searchBox: {
+    flex: 1,
     minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#cbd5e1",
     borderRadius: 12,
     backgroundColor: colors.card,
   },
@@ -889,93 +1200,98 @@ const styles = StyleSheet.create({
   countText: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
   pageText: { color: colors.primaryDark, fontSize: 12, fontWeight: "700" },
   userCard: {
-    position: "relative",
     flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 14,
-    paddingBottom: 43,
-    marginBottom: 10,
+    alignItems: "center",
+    padding: 10,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 15,
+    borderColor: "#dce4ea",
+    borderRadius: 12,
     backgroundColor: colors.card,
   },
+  userCardInactive: {
+    borderLeftWidth: 3,
+    borderLeftColor: "#d67a7a",
+    backgroundColor: "#f5f6f7",
+  },
+  userCardMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 64,
+  },
+  userCardPressed: { opacity: 0.84 },
   avatar: {
-    width: 45,
-    height: 45,
-    borderRadius: 15,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#dbeafe",
-    marginRight: 11,
+    backgroundColor: "#dceefa",
+    marginRight: 10,
+    overflow: "hidden",
   },
-  avatarInactive: { backgroundColor: "#e2e8f0" },
-  avatarText: { color: colors.primaryDark, fontSize: 14, fontWeight: "800" },
+  avatarImage: { ...StyleSheet.absoluteFill },
+  avatarInactive: { backgroundColor: "#e2e5e8" },
+  avatarText: { color: "#245675", fontSize: 14, fontWeight: "700" },
+  avatarTextInactive: { color: "#52606d" },
   userDetails: { flex: 1, minWidth: 0 },
-  userName: { color: colors.text, fontSize: 15, fontWeight: "800" },
-  username: {
-    color: colors.primaryDark,
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 3,
+  userName: { color: "#243746", fontSize: 16, fontWeight: "600" },
+  userNameInactive: { color: "#52606d" },
+  userData: {
+    color: "#52606d",
+    fontSize: 13,
+    marginTop: 2,
   },
-  userMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 9 },
-  metaPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 15,
-    backgroundColor: "#f1f5f9",
-  },
-  metaPillText: {
-    color: colors.textSecondary,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  authorizedPill: { backgroundColor: "#ecfdf5" },
-  notAuthorizedPill: { backgroundColor: "#f1f5f9" },
-  authorizedText: { color: "#047857" },
-  cardActions: { flexDirection: "row", gap: 7, marginLeft: 6 },
-  statusAction: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
+  userDataInactive: { color: "#5d6872" },
+  noRutData: { color: "#64748b" },
+  authorizationChip: {
+    alignSelf: "flex-start",
+    minHeight: 20,
     justifyContent: "center",
-    borderWidth: 1,
-    borderRadius: 11,
+    marginTop: 4,
+    paddingHorizontal: 7,
+    borderRadius: 10,
   },
-  activeAction: { borderColor: "#bbf7d0", backgroundColor: "#ecfdf5" },
-  inactiveAction: { borderColor: "#e2e8f0", backgroundColor: "#f8fafc" },
-  editAction: {
-    width: 38,
-    height: 38,
+  authorizedChip: { backgroundColor: "#dceefa" },
+  notAuthorizedChip: { backgroundColor: "#e8ecef" },
+  authorizationText: { fontSize: 11, fontWeight: "600" },
+  authorizedText: { color: "#174d70" },
+  notAuthorizedText: { color: "#475569" },
+  cardActions: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-    borderRadius: 11,
-    backgroundColor: "#eff6ff",
+    gap: 2,
+    marginLeft: 4,
   },
-  editActionDisabled: { borderColor: "#e2e8f0", backgroundColor: "#f8fafc" },
   statusBadge: {
-    position: "absolute",
-    left: 70,
-    bottom: 13,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    minHeight: 44,
+    paddingHorizontal: 8,
     borderRadius: 15,
   },
-  activeBadge: { backgroundColor: "#ecfdf5" },
-  inactiveBadge: { backgroundColor: "#f1f5f9" },
+  activeBadge: { backgroundColor: "#dcf3e5" },
+  inactiveBadge: { backgroundColor: "#fde9e8" },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
-  activeDot: { backgroundColor: "#059669" },
-  inactiveDot: { backgroundColor: "#94a3b8" },
-  statusText: { fontSize: 11, fontWeight: "700" },
-  activeStatusText: { color: "#047857" },
-  inactiveStatusText: { color: "#475569" },
-  emptyState: { alignItems: "center", paddingTop: 46, paddingHorizontal: 24 },
+  activeDot: { backgroundColor: "#27804a" },
+  inactiveDot: { backgroundColor: "#bd3d36" },
+  statusText: { fontSize: 12, fontWeight: "700" },
+  activeStatusText: { color: "#1f663c" },
+  inactiveStatusText: { color: "#8f2924" },
+  menuButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingTop: 48,
+    paddingHorizontal: 24,
+  },
   centerState: {
     flex: 1,
     alignItems: "center",
@@ -984,9 +1300,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   stateTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "800",
+    color: "#334155",
+    fontSize: 15,
+    fontWeight: "600",
     textAlign: "center",
     marginTop: 12,
   },
@@ -1057,7 +1373,7 @@ const styles = StyleSheet.create({
     marginBottom: 13,
   },
   confirmDeactivate: { backgroundColor: "#fee2e2" },
-  confirmActivate: { backgroundColor: "#d1fae5" },
+  confirmActivate: { backgroundColor: colors.successBackground },
   confirmTitle: { color: colors.text, fontSize: 19, fontWeight: "800" },
   confirmText: {
     color: colors.textSecondary,
@@ -1094,6 +1410,6 @@ const styles = StyleSheet.create({
     borderRadius: 11,
   },
   destructiveConfirm: { backgroundColor: colors.error },
-  positiveConfirm: { backgroundColor: "#059669" },
+  positiveConfirm: { backgroundColor: colors.primary },
   confirmStatusText: { color: "#fff", fontSize: 14, fontWeight: "800" },
 });

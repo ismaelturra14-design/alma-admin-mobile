@@ -1,28 +1,30 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
+import { ModuleBanner } from "@/components/ui/ModuleBanner";
+import { Pagination as SharedPagination } from "@/components/ui/PaginatedList";
+import { PAGE_SIZE } from "@/constants/theme";
 import { specialtyGroupsService } from "@/features/specialty-groups/services/specialtyGroupsService";
 import { specialtyService } from "@/features/specialty-groups/services/specialtyService";
-import { ModuleBanner } from "@/components/ui/ModuleBanner";
-import { colors } from "@/theme/colors";
 import type {
-  Especialidad,
-  EspecialidadGroup,
-  EspecialidadLink,
+    Especialidad,
+    EspecialidadGroup,
+    EspecialidadLink,
 } from "@/features/specialty-groups/types/especialidad";
+import { colors } from "@/theme/colors";
 
 type ActiveSection = "groups" | "links";
 type FormKind = "group" | "link" | null;
@@ -31,8 +33,6 @@ type DeleteTarget =
   | { kind: "link"; id: number; label: string }
   | null;
 type SelectOption = { value: string; label: string };
-
-const PAGE_SIZE = 8;
 
 function errorMessage(error: unknown, fallback: string): string {
   if (typeof error === "object" && error !== null && "response" in error) {
@@ -618,9 +618,9 @@ export function SpecialtyGroupingScreen() {
                 }
               />
             )}
-            <Pagination
+            <SharedPagination
               page={groupPage}
-              totalPages={totalGroupPages}
+              totalItems={filteredGroups.length}
               onPageChange={setGroupPage}
             />
           </View>
@@ -715,9 +715,9 @@ export function SpecialtyGroupingScreen() {
                 }
               />
             )}
-            <Pagination
+            <SharedPagination
               page={linkPage}
-              totalPages={totalLinkPages}
+              totalItems={filteredLinks.length}
               onPageChange={setLinkPage}
             />
           </View>
@@ -977,56 +977,6 @@ function EmptyState({
   );
 }
 
-function Pagination({
-  page,
-  totalPages,
-  onPageChange,
-}: {
-  page: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}) {
-  if (totalPages < 2) {
-    return null;
-  }
-  return (
-    <View style={styles.pagination}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Página anterior"
-        style={[styles.pageButton, page <= 1 && styles.pageButtonDisabled]}
-        disabled={page <= 1}
-        onPress={() => onPageChange(page - 1)}
-      >
-        <Ionicons
-          name="chevron-back"
-          size={18}
-          color={page <= 1 ? "#94a3b8" : colors.primaryDark}
-        />
-      </Pressable>
-      <Text style={styles.pageLabel}>
-        Página {page} de {totalPages}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Página siguiente"
-        style={[
-          styles.pageButton,
-          page >= totalPages && styles.pageButtonDisabled,
-        ]}
-        disabled={page >= totalPages}
-        onPress={() => onPageChange(page + 1)}
-      >
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={page >= totalPages ? "#94a3b8" : colors.primaryDark}
-        />
-      </Pressable>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { flex: 1 },
@@ -1235,8 +1185,8 @@ const styles = StyleSheet.create({
   errorText: { color: colors.error, fontSize: 14, lineHeight: 20 },
   retryText: { color: colors.primaryDark, fontWeight: "700" },
   successBanner: {
-    backgroundColor: "#f0fdf4",
-    borderColor: "#bbf7d0",
+    backgroundColor: colors.successBackground,
+    borderColor: colors.successBorder,
     borderWidth: 1,
     borderRadius: 10,
     padding: 11,

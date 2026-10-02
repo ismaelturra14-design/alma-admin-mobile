@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
     ActivityIndicator,
-    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -16,14 +17,14 @@ import {
     View,
 } from "react-native";
 
-import { ENV } from "@/config/env";
-import { colors } from "@/theme/colors";
 import type { UserAsset, UserCatalogs, UserFormValues } from "@/features/users/types/users";
+import { resolveAssetUri } from "@/features/users/utils/resolveAssetUri";
 import type {
     UserFormErrors,
     UserFormField,
     UserFormMode,
 } from "@/features/users/utils/userValidation";
+import { colors } from "@/theme/colors";
 
 type UserFormModalProps = {
   visible: boolean;
@@ -48,62 +49,6 @@ type UserFormModalProps = {
 };
 
 type Option = { value: string; label: string };
-
-function resolveAssetUri(value: string): string {
-  const trimmed = value.trim().replace(/&amp;/gi, "&").replace(/\\/g, "/");
-  if (!trimmed) {
-    return "";
-  }
-
-  // Keep real remote URLs and picker-created local URIs. A file URI returned
-  // from the server is not a device file: it can point into the iOS app bundle.
-  if (
-    /^https?:\/\//i.test(trimmed) ||
-    /^(content:|data:|blob:)/i.test(trimmed)
-  ) {
-    return trimmed;
-  }
-  if (trimmed.startsWith("//")) {
-    return `https:${trimmed}`;
-  }
-
-  let path = trimmed;
-  if (/^file:/i.test(path)) {
-    try {
-      path = new URL(path).pathname;
-    } catch {
-      path = path.replace(/^file:\/*/i, "/");
-    }
-  }
-
-  // Recover the backend-relative path from stale bundle paths such as
-  // file:///.../Bundle/Application/.../sites/ms/documents/medicos/....
-  const publicFilePath = path.match(/(?:^|\/)(sites\/.*)$/i)?.[1];
-  if (publicFilePath) {
-    path = publicFilePath;
-  } else if (/^file:|^\/(?:private|var|data)\//i.test(trimmed)) {
-    // Never pass an unresolvable device/bundle path to React Native Image.
-    return "";
-  }
-
-  if (/^[\w.-]+\.[a-z]{2,}(?::\d+)?(?:\/|$)/i.test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-
-  const baseUrl = ENV.PUBLIC_FILE_BASE_URL.replace(/\/+$/, "");
-  path = path.replace(/^\/+/, "");
-  const basePath = baseUrl
-    .match(/^https?:\/\/[^/]+(\/.*)$/i)?.[1]
-    ?.replace(/\/+$/, "");
-  if (
-    basePath &&
-    (path === basePath.replace(/^\/+/, "") ||
-      path.startsWith(`${basePath.replace(/^\/+/, "")}/`))
-  ) {
-    path = path.slice(basePath.replace(/^\/+/, "").length).replace(/^\/+/, "");
-  }
-  return baseUrl && path ? `${baseUrl}/${path}` : "";
-}
 
 function FormSection({
   title,
@@ -164,6 +109,101 @@ function Field({
           !editable ? styles.inputReadonly : null,
         ]}
       />
+      {error ? (
+        <Text accessibilityRole="alert" style={styles.validationText}>
+          {error}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function BirthdayField({
+  value,
+  onChange,
+  error,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+}) {
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const selectedDate = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+    : new Date();
+  const validSelectedDate =
+    match &&
+    selectedDate.getFullYear() === Number(match[1]) &&
+    selectedDate.getMonth() + 1 === Number(match[2]) &&
+    selectedDate.getDate() === Number(match[3]);
+  const displayValue = validSelectedDate
+    ? `${match[3]}/${match[2]}/${match[1]}`
+    : "Selecciona una fecha";
+
+  if (Platform.OS === "web") {
+    return (
+      <Field
+        label="Fecha de nacimiento"
+        value={value}
+        onChangeText={onChange}
+        error={error}
+        required
+        placeholder="AAAA-MM-DD"
+        keyboardType="numbers-and-punctuation"
+      />
+    );
+  }
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>
+        Fecha de nacimiento<Text style={styles.required}> *</Text>
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Fecha de nacimiento: ${displayValue}`}
+        accessibilityState={{ expanded: pickerVisible }}
+        style={[styles.selectButton, error ? styles.inputError : null]}
+        onPress={() => setPickerVisible((visible) => !visible)}
+      >
+        <Text
+          style={[
+            styles.selectValue,
+            !validSelectedDate && styles.placeholder,
+          ]}
+        >
+          {displayValue}
+        </Text>
+        <Ionicons
+          name="calendar-outline"
+          size={18}
+          color={colors.textSecondary}
+        />
+      </Pressable>
+      {pickerVisible ? (
+        <DateTimePicker
+          value={validSelectedDate ? selectedDate : new Date()}
+          mode="date"
+          display={Platform.OS === "ios" ? "inline" : "calendar"}
+          themeVariant="light"
+          accentColor="#306b94"
+          maximumDate={new Date()}
+          onChange={(event, date) => {
+            if (event.type === "dismissed") {
+              setPickerVisible(false);
+              return;
+            }
+            if (date) {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              onChange(`${year}-${month}-${day}`);
+            }
+            if (Platform.OS !== "ios") setPickerVisible(false);
+          }}
+        />
+      ) : null}
       {error ? (
         <Text accessibilityRole="alert" style={styles.validationText}>
           {error}
@@ -363,7 +403,8 @@ function ImageAttachment({
         {previewUri && !imageError ? (
           <Image
             source={{ uri: previewUri }}
-            resizeMode="contain"
+            contentFit="contain"
+            cachePolicy="none"
             style={styles.attachmentPreview}
             onLoad={() => setImageStatus({ uri: previewUri, status: "loaded" })}
             onError={() => {
@@ -659,14 +700,10 @@ export function UserFormModal({
                   placeholder="Apellidos"
                   autoCapitalize="words"
                 />
-                <Field
-                  label="Fecha de nacimiento"
+                <BirthdayField
                   value={form.birthday}
-                  onChangeText={(value) => setString("birthday", value)}
+                  onChange={(value) => setString("birthday", value)}
                   error={errors.birthday}
-                  required
-                  placeholder="AAAA-MM-DD"
-                  keyboardType="numbers-and-punctuation"
                 />
                 <Field
                   label="Correo electrónico"
@@ -812,8 +849,8 @@ export function UserFormModal({
                     accessibilityLabel="Usuario autorizado"
                     value={form.authorized}
                     onValueChange={(value) => onChange("authorized", value)}
-                    trackColor={{ false: "#cbd5e1", true: "#86efac" }}
-                    thumbColor={form.authorized ? "#059669" : "#f8fafc"}
+                    trackColor={{ false: "#cbd5e1", true: colors.primarySoft }}
+                    thumbColor={form.authorized ? colors.primaryDark : "#f8fafc"}
                   />
                 </View>
                 <Field
@@ -882,7 +919,7 @@ const styles = StyleSheet.create({
     height: "96%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: colors.background,
+    backgroundColor: "#e8f4ff",
     overflow: "hidden",
   },
   modalHeader: {
@@ -891,9 +928,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 18,
     paddingVertical: 15,
-    backgroundColor: colors.card,
+    backgroundColor: "#d9edfa",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: "#cfe7fb",
   },
   modalTitleRow: {
     flexDirection: "row",
@@ -954,8 +991,8 @@ const styles = StyleSheet.create({
   section: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: colors.card,
+    borderColor: "#cfe7fb",
+    backgroundColor: "#f4faff",
     padding: 15,
   },
   sectionHeading: {
@@ -964,7 +1001,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     paddingBottom: 11,
     borderBottomWidth: 1,
-    borderBottomColor: "#eef2f7",
+    borderBottomColor: "#d6e7f2",
   },
   sectionIcon: {
     width: 31,

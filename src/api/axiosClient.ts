@@ -1,8 +1,13 @@
 import { create, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import { ENV } from '@/config/env';
-import { sessionStore } from '@/store/sessionStore';
+import {
+    notifyApiForbidden,
+    notifySessionExpired,
+    notifyTokensRefreshed,
+} from '@/features/auth/services/authSessionEvents';
 import type { RefreshTokenResponse } from '@/features/auth/types/auth';
+import { sessionStore } from '@/store/sessionStore';
 
 const api = create({
   baseURL: ENV.API_BASE_URL,
@@ -57,6 +62,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
+    if (error.response?.status === 403) {
+      notifyApiForbidden();
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -90,12 +99,20 @@ api.interceptors.response.use(
 
         const payload = refreshResponse.data as RefreshTokenResponse;
 
-        if (payload?.status === 'success' && payload?.access_token) {
-          await sessionStore.setAccessToken(payload.access_token);
-
-          if (payload.refresh_token) {
-            await sessionStore.setRefreshToken(payload.refresh_token);
-          }
+        if (
+          payload?.access_token &&
+          payload?.refresh_token &&
+          (!payload.status || payload.status === 'success')
+        ) {
+          await Promise.all([
+            sessionStore.setAccessToken(payload.access_token),
+            sessionStore.setRefreshToken(payload.refresh_token),
+          ]);
+          notifyTokensRefreshed({
+            access_token: payload.access_token,
+            refresh_token: payload.refresh_token,
+            access_expires_in: payload.access_expires_in,
+          });
 
           processQueue(null, payload.access_token);
 
@@ -109,7 +126,8 @@ api.interceptors.response.use(
         throw new Error('Refresh token inválido');
       } catch (refreshError) {
         processQueue(refreshError, null);
-        await sessionStore.clear();
+        await sessionStore.clear().catch(() => undefined);
+        notifySessionExpired();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

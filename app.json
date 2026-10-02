@@ -13,7 +13,7 @@
     "android": {
       "package": "com.almamedica.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#effaff",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -38,9 +38,34 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#07566f",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "@react-native-community/datetimepicker",
+        {
+          "android": {
+            "datePicker": {
+              "colorAccent": {
+                "light": "#306b94",
+                "dark": "#82bce4"
+              },
+              "textColorPrimary": {
+                "light": "#132731",
+                "dark": "#eef6f9"
+              },
+              "textColorSecondary": {
+                "light": "#4a626f",
+                "dark": "#bacbd2"
+              },
+              "windowBackground": {
+                "light": "#effaff",
+                "dark": "#1a272d"
+              }
+            }
+          }
         }
       ]
     ],

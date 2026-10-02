@@ -1,16 +1,17 @@
 import {
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
 } from "react-native";
 
 import { LoginForm } from "@/features/auth/components/LoginForm";
-import { colors } from "@/theme/colors";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
 export default function LoginScreen() {
+  const { colors } = useAppTheme();
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.keyboardArea}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -24,7 +25,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   keyboardArea: { flex: 1 },
 });

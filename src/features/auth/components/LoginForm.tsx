@@ -1,17 +1,22 @@
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { Input } from "@/components/ui/Input";
+import { Elevation, Motion, Radii, Spacing, Typography } from "@/constants/theme";
 import { useAuth } from "@/features/auth/context/AuthContext";
-import { colors } from "@/theme/colors";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 export function LoginForm() {
   const { login } = useAuth();
+  const { colors } = useAppTheme();
+  const reduceMotion = useReducedMotion();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,8 +51,8 @@ export function LoginForm() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
-        <View style={styles.brandBlock}>
-          <View style={styles.logoFrame}>
+        <Animated.View entering={reduceMotion === false ? FadeInDown.duration(Motion.duration.medium) : undefined} style={styles.brandBlock}>
+          <View style={[styles.logoFrame, { backgroundColor: colors.surface }]}>
             <Image
               source={require("../../../images/almaAdminLogo.png")}
               style={styles.logo}
@@ -55,13 +60,13 @@ export function LoginForm() {
               accessibilityLabel="Logo de Alma Médica"
             />
           </View>
-          <Text style={styles.brandName}>Alma Médica</Text>
-          <Text style={styles.brandCaption}>PORTAL DE ADMINISTRACIÓN</Text>
-        </View>
+          <Text style={[styles.brandName, { color: colors.primaryStrong }]}>Alma Médica</Text>
+          <Text style={[styles.brandCaption, { color: colors.textSecondary }]}>PORTAL DE ADMINISTRACIÓN</Text>
+        </Animated.View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.title}>Bienvenido de nuevo</Text>
-          <Text style={styles.subtitle}>
+        <Animated.View entering={reduceMotion === false ? FadeInDown.delay(90).duration(Motion.duration.medium) : undefined} style={[styles.formCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Bienvenido de nuevo</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Ingresa tus credenciales para continuar.
           </Text>
 
@@ -95,14 +100,14 @@ export function LoginForm() {
             disabled={loading}
             onPress={onSubmit}
           />
-        </View>
+        </Animated.View>
 
-        <View style={styles.securityNote}>
-          <Ionicons name="lock-closed-outline" size={15} color="#64748b" />
-          <Text style={styles.securityText}>
+        <Animated.View entering={reduceMotion === false ? FadeInDown.delay(180).duration(Motion.duration.medium) : undefined} style={styles.securityNote}>
+          <Ionicons name="lock-closed-outline" size={15} color={colors.textSecondary} accessibilityLabel="Acceso seguro" />
+          <Text style={[styles.securityText, { color: colors.textSecondary }]}>
             Acceso seguro para personal autorizado
           </Text>
-        </View>
+        </Animated.View>
       </View>
     </ScrollView>
   );
@@ -112,8 +117,8 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 30,
+    paddingHorizontal: Spacing.five,
+    paddingVertical: Spacing.six,
   },
   container: {
     width: "100%",
@@ -122,7 +127,7 @@ const styles = StyleSheet.create({
   },
   brandBlock: {
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: Spacing.five,
   },
   logoFrame: {
     width: 132,
@@ -130,75 +135,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
-    borderRadius: 28,
-    backgroundColor: "#fff",
-    shadowColor: "#0b5e93",
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    borderRadius: Radii.large,
+    ...Elevation.medium,
   },
   logo: {
     width: 120,
     height: 108,
   },
   brandName: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: colors.primaryDark,
-    letterSpacing: 0.2,
+    ...Typography.h2,
   },
   brandCaption: {
-    marginTop: 5,
-    color: colors.textSecondary,
-    fontSize: 10,
+    marginTop: Spacing.one,
+    ...Typography.caption,
     fontWeight: "800",
-    letterSpacing: 1.5,
   },
   formCard: {
-    padding: 24,
-    borderRadius: 22,
+    padding: Spacing.five,
+    borderRadius: Radii.large,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: colors.card,
-    shadowColor: "#0f172a",
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
+    ...Elevation.low,
   },
   title: {
-    fontSize: 25,
-    fontWeight: "800",
-    color: colors.text,
+    ...Typography.h1,
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 21,
-    marginTop: 7,
-    marginBottom: 22,
+    ...Typography.body,
+    marginTop: Spacing.one,
+    marginBottom: Spacing.five,
   },
   submitButton: {
     minHeight: 52,
     marginTop: 4,
-    borderRadius: 14,
-    backgroundColor: colors.primaryDark,
-    shadowColor: colors.primaryDark,
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    borderRadius: Radii.medium,
   },
   securityNote: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
-    marginTop: 20,
+    gap: Spacing.two,
+    marginTop: Spacing.four,
   },
   securityText: {
-    color: "#64748b",
-    fontSize: 12,
+    ...Typography.caption,
   },
 });

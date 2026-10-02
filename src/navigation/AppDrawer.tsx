@@ -3,26 +3,36 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Animated,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
 } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
-import { useAuth } from "@/features/auth/context/AuthContext";
-import { getVisibleMenuSections } from "@/navigation/menuConfig";
+import { AccessDeniedScreen } from "@/components/auth/AccessDeniedScreen";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { Motion, Radii, Spacing, Typography } from "@/constants/theme";
 import { AuditPermissionsScreen } from "@/features/audit/screens/AuditPermissionsScreen";
+import { useAuth } from "@/features/auth/context/AuthContext";
+import { subscribeToApiForbidden } from "@/features/auth/services/authSessionEvents";
+import { BoxScreensScreen } from "@/features/box-screens/screens/BoxScreensScreen";
 import { EmrLinksScreen } from "@/features/emr-links/screens/EmrLinksScreen";
+import { HomeOverview } from "@/features/home/components/HomeOverview";
+import { PaymentMethodsScreen } from "@/features/payment-methods/screens/PaymentMethodsScreen";
+import { RolePermissionsScreen } from "@/features/role-permissions/screens/RolePermissionsScreen";
 import { MantenedorPantallasScreen } from "@/features/screen-maintenance/screens/MantenedorPantallasScreen";
-import { ModulePlaceholderScreen } from "@/screens/modules/ModulePlaceholderScreen";
 import { SpecialtyGroupingScreen } from "@/features/specialty-groups/screens/SpecialtyGroupingScreen";
 import { SystemInterfacesScreen } from "@/features/system-interfaces/screens/SystemInterfacesScreen";
 import { TmReporterLinksScreen } from "@/features/tm-reporter-links/screens/TmReporterLinksScreen";
 import { UsersManagementScreen } from "@/features/users/screens/UsersManagementScreen";
-import { colors } from "@/theme/colors";
+import { useAppTheme } from "@/hooks/use-app-theme";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { getVisibleMenuSections } from "@/navigation/menuConfig";
+import { ModulePlaceholderScreen } from "@/screens/modules/ModulePlaceholderScreen";
 
 type ModuleScreen = {
   id: string;
@@ -125,9 +135,14 @@ const moduleScreens: Record<string, ModuleScreen> = {
 
 export function AppDrawer() {
   const { user, logout, hasAnyPermission } = useAuth();
+  const { colors } = useAppTheme();
+  const reduceMotion = useReducedMotion();
+  const { width: windowWidth } = useWindowDimensions();
+  const drawerWidth = Math.min(windowWidth * 0.86, 340);
   const [isOpen, setIsOpen] = useState(false);
   const [activeScreenId, setActiveScreenId] = useState("inicio");
-  const [translateX] = useState(() => new Animated.Value(-320));
+  const [apiDenied, setApiDenied] = useState(false);
+  const translateX = useSharedValue(-(drawerWidth + 1));
 
   const menuSections = useMemo(
     () =>
@@ -150,13 +165,37 @@ export function AppDrawer() {
     return selected ?? moduleScreens.Inicio;
   }, [activeScreenId]);
 
+  const canOpenActiveScreen = useMemo(
+    () =>
+      activeScreen.id === "inicio" ||
+      menuSections.some((section) =>
+        section.items.some(
+          (item) => moduleScreens[item.route]?.id === activeScreen.id,
+        ),
+      ),
+    [activeScreen.id, menuSections],
+  );
+
+  useEffect(
+    () => subscribeToApiForbidden(() => setApiDenied(true)),
+    [],
+  );
+
   useEffect(() => {
-    Animated.timing(translateX, {
-      toValue: isOpen ? 0 : -320,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [isOpen, translateX]);
+    const target = isOpen ? 0 : -(drawerWidth + 1);
+    if (reduceMotion !== false) {
+      translateX.value = target;
+      return;
+    }
+    translateX.value = withTiming(target, {
+      duration: Motion.duration.medium,
+      easing: Easing.bezier(0.2, 0, 0, 1),
+    });
+  }, [drawerWidth, isOpen, reduceMotion, translateX]);
+
+  const drawerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   const handleLogout = async () => {
     await logout();
@@ -164,51 +203,78 @@ export function AppDrawer() {
     router.replace("/login");
   };
 
-  const fullName = user
-    ? `${user.user_fname} ${user.user_lname}`.trim()
-    : "Usuario";
-  const groupName = user?.user_group_name ?? "Sin grupo";
+  const fullName = user ? `${user.user_fname} ${user.user_lname}`.trim() || "—" : "—";
+  const groupName = user?.user_group_name ?? "—";
   const initials =
-    (user ? `${user.user_fname} ${user.user_lname}` : "US")
+    (user ? `${user.user_fname} ${user.user_lname}` : "—")
       .split(" ")
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "U";
+      .join("") || "—";
 
   const handleSelectModule = (route: string) => {
+    const isVisible = menuSections.some((section) =>
+      section.items.some((item) => item.route === route),
+    );
+    if (!isVisible) {
+      setApiDenied(false);
+      setIsOpen(false);
+      return;
+    }
+
     const nextScreen = moduleScreens[route as keyof typeof moduleScreens];
     if (nextScreen) {
       setActiveScreenId(nextScreen.id);
     }
+    setApiDenied(false);
     setIsOpen(false);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <Pressable
-            style={styles.menuButton}
+            accessibilityRole="button"
+            accessibilityLabel={isOpen ? "Cerrar menú" : "Abrir menú"}
+            accessibilityHint="Muestra los módulos disponibles."
+            style={[styles.menuButton, { backgroundColor: colors.primarySoft }]}
             onPress={() => setIsOpen((prev) => !prev)}
           >
-            <Text style={styles.menuButtonText}>☰</Text>
+            <Ionicons name={isOpen ? "close" : "menu-outline"} size={22} color={colors.primary} accessibilityLabel="Menú" accessibilityHint="Abre o cierra la navegación." />
           </Pressable>
 
-          <Text style={styles.headerTitle}>{activeScreen.label}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{activeScreen.label}</Text>
 
-          <View style={styles.userBadge}>
-            <Text style={styles.userBadgeText}>{initials}</Text>
+          <View accessibilityRole="image" accessibilityLabel={`Perfil de ${fullName}`} style={[styles.userBadge, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.userBadgeText, { color: colors.surface }]}>{initials}</Text>
           </View>
         </View>
 
         <View style={styles.content}>
-          {activeScreen.id === "mantenedor-pantallas" ? (
+          {apiDenied || !canOpenActiveScreen ? (
+            <AccessDeniedScreen
+              description={
+                apiDenied
+                  ? "El servidor rechazó esta operación para tu cuenta. La sesión sigue activa."
+                  : undefined
+              }
+            />
+          ) : activeScreen.id === "inicio" ? (
+            <HomeOverview user={user} menuSections={menuSections} onSelectModule={handleSelectModule} />
+          ) : activeScreen.id === "box-pantalla" ? (
+            <BoxScreensScreen />
+          ) : activeScreen.id === "mantenedor-pantallas" ? (
             <MantenedorPantallasScreen />
+          ) : activeScreen.id === "metodos-pago" ? (
+            <PaymentMethodsScreen />
           ) : activeScreen.id === "usuarios-del-sistema" ? (
             <UsersManagementScreen />
           ) : activeScreen.id === "auditoria-permisos" ? (
             <AuditPermissionsScreen />
+          ) : activeScreen.id === "roles-permisos" ? (
+            <RolePermissionsScreen />
           ) : activeScreen.id === "interfaces" ? (
             <SystemInterfacesScreen />
           ) : activeScreen.id === "agrupacion-especialidades" ? (
@@ -226,16 +292,16 @@ export function AppDrawer() {
         </View>
 
         {isOpen ? (
-          <Pressable style={styles.overlay} onPress={() => setIsOpen(false)} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar menú" accessibilityHint="Cierra el menú lateral." style={[styles.overlay, { backgroundColor: colors.overlay }]} onPress={() => setIsOpen(false)} />
         ) : null}
 
         <Animated.View
           pointerEvents={isOpen ? "auto" : "none"}
-          style={[styles.drawer, { transform: [{ translateX }] }]}
+          style={[styles.drawer, { width: drawerWidth, backgroundColor: colors.surface, borderRightColor: colors.border }, drawerAnimatedStyle]}
         >
-          <View style={styles.drawerHeader}>
+          <View style={[styles.drawerHeader, { backgroundColor: colors.primarySoft, borderBottomColor: colors.border }]}>
             <View style={styles.drawerBrandRow}>
-              <View style={styles.drawerLogoFrame}>
+              <View style={[styles.drawerLogoFrame, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                 <Image
                   source={require("../images/almaAdminLogoTransparent.png")}
                   style={styles.drawerLogo}
@@ -244,19 +310,19 @@ export function AppDrawer() {
                 />
               </View>
               <View style={styles.drawerBrandCopy}>
-                <Text style={styles.drawerBrand}>Alma Admin</Text>
-                <Text style={styles.drawerTagline}>GESTIÓN CLÍNICA</Text>
+                <Text style={[styles.drawerBrand, { color: colors.primaryStrong }]}>Alma Admin</Text>
+                <Text style={[styles.drawerTagline, { color: colors.primary }]}>GESTIÓN CLÍNICA</Text>
               </View>
             </View>
             <View style={styles.drawerProfile}>
-              <View style={styles.drawerAvatar}>
-                <Text style={styles.drawerAvatarText}>{initials}</Text>
+              <View style={[styles.drawerAvatar, { backgroundColor: colors.surfaceSelected }]}>
+                <Text style={[styles.drawerAvatarText, { color: colors.primaryStrong }]}>{initials}</Text>
               </View>
               <View style={styles.drawerProfileCopy}>
-                <Text style={styles.drawerUserName} numberOfLines={1}>
+                <Text style={[styles.drawerUserName, { color: colors.primaryStrong }]} numberOfLines={1}>
                   {fullName}
                 </Text>
-                <Text style={styles.drawerUserMeta} numberOfLines={1}>
+                <Text style={[styles.drawerUserMeta, { color: colors.textSecondary }]} numberOfLines={1}>
                   {groupName}
                 </Text>
               </View>
@@ -264,13 +330,13 @@ export function AppDrawer() {
           </View>
 
           <ScrollView
-            style={styles.drawerBody}
+            style={[styles.drawerBody, { backgroundColor: colors.background }]}
             contentContainerStyle={styles.drawerBodyContent}
             showsVerticalScrollIndicator={false}
           >
             {menuSections.map((section) => (
               <View key={section.id} style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{section.title}</Text>
 
                 {section.items.map((item) => {
                   const isActive =
@@ -281,20 +347,26 @@ export function AppDrawer() {
                       key={item.id}
                       style={({ pressed }) => [
                         styles.menuItem,
-                        isActive && styles.menuItemActive,
+                        { backgroundColor: isActive ? colors.surfaceSelected : colors.surface, borderColor: isActive ? colors.primary : colors.border },
                         pressed && styles.menuItemPressed,
                       ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                      accessibilityHint={`Abre el módulo ${item.label}.`}
                       onPress={() => handleSelectModule(item.route)}
                     >
+                      {isActive ? <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} /> : null}
                       <Ionicons
                         name={item.icon as any}
                         size={18}
-                        color={isActive ? "#1d4ed8" : "#475569"}
+                        color={isActive ? colors.primary : colors.textSecondary}
+                        accessibilityLabel={item.label}
+                        accessibilityHint={`Módulo ${item.label}`}
                       />
                       <Text
                         style={[
                           styles.menuItemText,
-                          isActive && styles.menuItemTextActive,
+                          { color: isActive ? colors.primary : colors.text },
                         ]}
                       >
                         {item.label}
@@ -306,10 +378,8 @@ export function AppDrawer() {
             ))}
           </ScrollView>
 
-          <View style={styles.logoutContainer}>
-            <Pressable style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutText}>Cerrar sesión</Text>
-            </Pressable>
+          <View style={[styles.logoutContainer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+            <ActionButton action="logout" fullWidth onPress={() => void handleLogout()} />
           </View>
         </Animated.View>
       </View>
@@ -318,99 +388,71 @@ export function AppDrawer() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  safeArea: { flex: 1 },
+  container: { flex: 1 },
   header: {
-    height: 64,
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    backgroundColor: colors.card,
+    paddingHorizontal: Spacing.four,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
   },
   menuButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: Radii.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#eef6ff",
-  },
-  menuButtonText: {
-    fontSize: 22,
-    color: colors.text,
-    fontWeight: "700",
   },
   headerTitle: {
     flex: 1,
-    marginHorizontal: 12,
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.text,
+    marginHorizontal: Spacing.three,
+    ...Typography.bodyStrong,
     textAlign: "center",
   },
   userBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
+    width: 40,
+    height: 40,
+    borderRadius: Radii.pill,
     alignItems: "center",
     justifyContent: "center",
   },
   userBadgeText: {
-    color: "#ffffff",
+    ...Typography.caption,
     fontWeight: "700",
-    fontSize: 12,
   },
-  content: {
-    flex: 1,
-  },
+  content: { flex: 1 },
   overlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(15, 23, 42, 0.3)",
   },
   drawer: {
     position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
-    width: 300,
-    backgroundColor: colors.card,
     borderRightWidth: 1,
-    borderRightColor: "#e5e7eb",
     zIndex: 10,
   },
   drawerHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 18,
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.four,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.14)",
-    backgroundColor: colors.primaryDark,
   },
   drawerBrandRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   drawerLogoFrame: {
-    width: 58,
-    height: 58,
+    width: 56,
+    height: 56,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
-    borderRadius: 18,
+    marginRight: Spacing.three,
+    borderRadius: Radii.large,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
   drawerLogo: {
     width: 56,
@@ -420,120 +462,83 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drawerTagline: {
-    marginTop: 4,
-    color: "#bfdbfe",
-    fontSize: 9,
+    marginTop: Spacing.one,
+    ...Typography.caption,
     fontWeight: "800",
-    letterSpacing: 1.2,
   },
   drawerBrand: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#fff",
+    ...Typography.h2,
   },
   drawerProfile: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 18,
-    padding: 11,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    marginTop: Spacing.four,
+    padding: Spacing.three,
+    borderRadius: Radii.medium,
   },
   drawerAvatar: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
-    borderRadius: 19,
-    backgroundColor: "#bfdbfe",
+    marginRight: Spacing.two,
+    borderRadius: Radii.pill,
   },
   drawerAvatarText: {
-    color: colors.primaryDark,
-    fontSize: 12,
+    ...Typography.caption,
     fontWeight: "800",
   },
   drawerProfileCopy: {
     flex: 1,
   },
   drawerUserName: {
-    fontSize: 14,
+    ...Typography.caption,
     fontWeight: "700",
-    color: "#fff",
   },
   drawerUserMeta: {
-    fontSize: 12,
-    marginTop: 4,
-    color: "#dbeafe",
+    ...Typography.caption,
+    marginTop: Spacing.one,
   },
   drawerBody: {
     flex: 1,
-    backgroundColor: "#f8fafc",
   },
   drawerBodyContent: {
-    paddingHorizontal: 12,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
   },
   sectionContainer: {
-    marginBottom: 14,
+    marginBottom: Spacing.four,
   },
   sectionTitle: {
-    fontSize: 11,
+    ...Typography.caption,
     fontWeight: "700",
-    color: "#64748b",
-    letterSpacing: 1,
     textTransform: "uppercase",
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingHorizontal: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   menuItem: {
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 11,
-    marginBottom: 6,
+    borderRadius: Radii.medium,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    marginBottom: Spacing.one,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#ffffff",
   },
-  menuItemActive: {
-    backgroundColor: "#ecf5ff",
-    borderColor: "#bfdbfe",
-  },
-  menuItemPressed: {
-    backgroundColor: "#f1f5f9",
-  },
+  activeIndicator: { width: 3, alignSelf: "stretch", borderRadius: Radii.pill, marginRight: Spacing.two },
+  menuItemPressed: { opacity: 0.76 },
   menuItemText: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    color: "#0f172a",
+    marginLeft: Spacing.three,
+    ...Typography.caption,
     fontWeight: "600",
   },
-  menuItemTextActive: {
-    color: "#1d4ed8",
-  },
   logoutContainer: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 18,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.four,
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
-  },
-  logoutButton: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  logoutText: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "700",
   },
 });

@@ -1,4 +1,5 @@
 import api from "@/api/axiosClient";
+import { ENV } from "@/config/env";
 
 export type ManagedScreen = {
   iden: number;
@@ -16,6 +17,16 @@ export type ScreenInput = {
   facility: number;
   name: string;
 };
+
+function requestConfig() {
+  return ENV.API_KEY
+    ? {
+        headers: {
+          api_key: ENV.API_KEY,
+        },
+      }
+    : undefined;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -84,24 +95,24 @@ function normalizeFacilities(payload: unknown): FacilityOption[] {
 
 export const screensService = {
   async getScreens(): Promise<ManagedScreen[]> {
-    const response = await api.get<unknown>("/screens");
+    const response = await api.get<unknown>("/screens", requestConfig());
     return normalizeScreens(response.data);
   },
 
   async getFacilities(): Promise<FacilityOption[]> {
-    const response = await api.get<unknown>("/facilities");
+    const response = await api.get<unknown>("/facilities", requestConfig());
     return normalizeFacilities(response.data);
   },
 
   async createScreen(input: ScreenInput): Promise<void> {
-    await api.post("/screens", input);
+    await api.post("/screens", input, requestConfig());
   },
 
   async updateScreen(iden: number, input: ScreenInput): Promise<void> {
-    await api.put(`/screens/${iden}`, input);
+    await api.put(`/screens/${iden}`, input, requestConfig());
   },
 
   async deleteScreen(iden: number): Promise<void> {
-    await api.delete(`/screens/${iden}`);
+    await api.delete(`/screens/${iden}`, requestConfig());
   },
 };

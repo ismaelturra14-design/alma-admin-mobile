@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { colors } from "@/theme/colors";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
 type ModuleBannerProps = {
   title: string;
@@ -17,16 +17,18 @@ export function ModuleBanner({
   icon,
   eyebrow = "SISTEMA & HERRAMIENTAS",
 }: ModuleBannerProps) {
+  const { colors } = useAppTheme();
+
   return (
-    <View style={styles.container}>
-      <View style={styles.decorativeCircle} />
-      <View style={styles.iconFrame}>
-        <Ionicons name={icon} size={25} color="#fff" />
+    <View style={[styles.container, { backgroundColor: colors.primarySoft }]}>
+      <View style={[styles.decorativeCircle, { backgroundColor: colors.surfaceSelected }]} />
+      <View style={[styles.iconFrame, { backgroundColor: colors.surfaceSelected }]}>
+        <Ionicons name={icon} size={25} color={colors.primary} />
       </View>
       <View style={styles.copy}>
-        <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={[styles.eyebrow, { color: colors.primary }]}>{eyebrow}</Text>
+        <Text style={[styles.title, { color: colors.primaryStrong }]}>{title}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
       </View>
     </View>
   );
@@ -42,7 +44,6 @@ const styles = StyleSheet.create({
     padding: 17,
     marginBottom: 14,
     borderRadius: 18,
-    backgroundColor: colors.primaryDark,
   },
   decorativeCircle: {
     position: "absolute",
@@ -51,7 +52,6 @@ const styles = StyleSheet.create({
     right: -55,
     top: -84,
     borderRadius: 80,
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
   iconFrame: {
     width: 48,
@@ -61,16 +61,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 13,
     borderRadius: 15,
-    backgroundColor: "rgba(255,255,255,0.16)",
   },
   copy: { flex: 1, minWidth: 0 },
   eyebrow: {
-    color: "#bfdbfe",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1.2,
     marginBottom: 3,
   },
-  title: { color: "#fff", fontSize: 20, fontWeight: "800" },
-  subtitle: { color: "#dbeafe", fontSize: 12, marginTop: 4, lineHeight: 17 },
+  title: { fontSize: 20, fontWeight: "800" },
+  subtitle: { fontSize: 12, marginTop: 4, lineHeight: 17 },
 });

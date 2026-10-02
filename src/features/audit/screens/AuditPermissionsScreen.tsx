@@ -1,26 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
-import { PERMISSIONS } from "@/constants/permissions";
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
-import { useAuth } from "@/features/auth/context/AuthContext";
+import { Pagination } from "@/components/ui/PaginatedList";
+import { PERMISSIONS } from "@/constants/permissions";
+import { PAGE_SIZE } from "@/constants/theme";
 import { auditService } from "@/features/audit/services/auditService";
-import { colors } from "@/theme/colors";
 import type { AuditMeta, AuditRecord } from "@/features/audit/types/audit";
-
-const PAGE_SIZE = 50;
+import { useAuth } from "@/features/auth/context/AuthContext";
+import { colors } from "@/theme/colors";
 
 function formatDate(value: string): string {
   if (!value) {
@@ -153,6 +153,9 @@ export function AuditPermissionsScreen() {
   );
 
   const loadPage = useCallback(async (requestedPage: number) => {
+    if (!canView) {
+      return;
+    }
     setErrorMessage("");
     try {
       const result = await auditService.getAuditPage({
@@ -168,10 +171,16 @@ export function AuditPermissionsScreen() {
         "No se pudo cargar el historial de auditoría. Intenta nuevamente.",
       );
     }
-  }, []);
+  }, [canView]);
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!canView) {
+      return () => {
+        isMounted = false;
+      };
+    }
 
     const load = async () => {
       setIsLoading(true);
@@ -185,7 +194,7 @@ export function AuditPermissionsScreen() {
     return () => {
       isMounted = false;
     };
-  }, [loadPage]);
+  }, [canView, loadPage]);
 
   const visibleRecords = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -384,65 +393,7 @@ export function AuditPermissionsScreen() {
           </Pressable>
         )}
         ListFooterComponent={
-          meta.totalPages > 1 ? (
-            <View style={styles.pagination}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Página anterior"
-                style={[
-                  styles.pageButton,
-                  page <= 1 && styles.pageButtonDisabled,
-                ]}
-                onPress={() => goToPage(page - 1)}
-                disabled={page <= 1}
-              >
-                <Ionicons
-                  name="chevron-back"
-                  size={18}
-                  color={page <= 1 ? "#94a3b8" : colors.primaryDark}
-                />
-                <Text
-                  style={[
-                    styles.pageButtonText,
-                    page <= 1 && styles.pageButtonTextDisabled,
-                  ]}
-                >
-                  Anterior
-                </Text>
-              </Pressable>
-              <Text style={styles.paginationCount}>
-                {page} / {meta.totalPages}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Página siguiente"
-                style={[
-                  styles.pageButton,
-                  page >= meta.totalPages && styles.pageButtonDisabled,
-                ]}
-                onPress={() => goToPage(page + 1)}
-                disabled={page >= meta.totalPages}
-              >
-                <Text
-                  style={[
-                    styles.pageButtonText,
-                    page >= meta.totalPages && styles.pageButtonTextDisabled,
-                  ]}
-                >
-                  Siguiente
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={
-                    page >= meta.totalPages ? "#94a3b8" : colors.primaryDark
-                  }
-                />
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.footerSpacer} />
-          )
+          <Pagination page={page} totalItems={meta.total} onPageChange={goToPage} disabled={isLoading} />
         }
       />
 

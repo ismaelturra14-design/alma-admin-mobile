@@ -6,6 +6,7 @@ import {
     type PressableStateCallbackType,
 } from 'react-native';
 
+import { Radii, Spacing, Typography } from '@/constants/theme';
 import { colors } from '@/theme/colors';
 
 type ButtonProps = PressableProps & {
@@ -20,7 +21,7 @@ export function Button({ title, variant = 'primary', style, ...props }: ButtonPr
 
     return [
       styles.button,
-      variant === 'danger' ? styles.danger : styles.primary,
+      { backgroundColor: variant === 'danger' ? colors.error : colors.primary },
       state.pressed && styles.pressed,
       resolvedStyle,
     ];
@@ -38,24 +39,18 @@ export function Button({ title, variant = 'primary', style, ...props }: ButtonPr
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    minHeight: 48,
+    borderRadius: Radii.medium,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.five,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  danger: {
-    backgroundColor: colors.error,
   },
   pressed: {
     opacity: 0.85,
   },
   text: {
     color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
+    ...Typography.bodyStrong,
   },
 });

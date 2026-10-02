@@ -102,51 +102,135 @@ function parsePrestations(payload: unknown): PrestationOption[] {
     "rows",
   ]).flatMap((value) => {
     if (!isRecord(value)) return [];
+
+    const nestedCategory = isRecord(value.categorie)
+      ? value.categorie
+      : isRecord(value.category)
+        ? value.category
+        : isRecord(value.category_info)
+          ? value.category_info
+          : isRecord(value.prestacion)
+            ? value.prestacion
+            : isRecord(value.prestation)
+              ? value.prestation
+              : {};
+
     const specialty = isRecord(value.specialty)
       ? value.specialty
-      : isRecord(value.especialidad)
-        ? value.especialidad
-        : {};
+      : isRecord(value.speciality)
+        ? value.speciality
+        : isRecord(value.especialidad)
+          ? value.especialidad
+          : isRecord(value.specialty_data)
+            ? value.specialty_data
+            : {};
+
     const id = positiveInteger(
       firstValue(value, [
         "id",
+        "pc_catid",
         "categorie_id",
         "category_id",
         "categoryId",
         "prestacion_id",
+        "prestacionId",
         "option_id",
-      ]),
+      ]) ??
+        firstValue(nestedCategory, [
+          "id",
+          "categorie_id",
+          "category_id",
+          "prestacion_id",
+          "option_id",
+        ]),
     );
-    const name = stringValue(
-      firstValue(value, [
-        "name",
-        "categorie_name",
-        "categorie",
-        "category_name",
-        "prestacion_name",
-        "prestacion",
-        "title",
-        "description",
-        "label",
-        "nombre",
-      ]),
-    );
+
+    const name =
+      stringValue(
+        firstValue(value, [
+          "name",
+          "pc_catname",
+          "categorie_name",
+          "categorie",
+          "category_name",
+          "prestacion_name",
+          "prestacion",
+          "prestacion_nombre",
+          "title",
+          "description",
+          "label",
+          "nombre",
+          "nombre_prestacion",
+        ]),
+      ) ??
+      stringValue(
+        firstValue(nestedCategory, [
+          "name",
+          "categorie_name",
+          "category_name",
+          "prestacion_name",
+          "prestacion",
+          "title",
+          "description",
+          "label",
+          "nombre",
+        ]),
+      );
+
     const specialtyId = positiveInteger(
       firstValue(value, [
         "specialty_id",
         "speciality_id",
         "especialidad_id",
+        "pc_especialidad",
+        "id_especialidad",
         "specialtyId",
-      ]) ?? firstValue(specialty, ["id", "option_id"]),
-    );
+        "specialityId",
+      ]),
+    ) ??
+      positiveInteger(
+        firstValue(specialty, [
+          "id",
+          "option_id",
+          "specialty_id",
+          "speciality_id",
+          "pc_especialidad",
+        ]),
+      ) ??
+      positiveInteger(
+        firstValue(nestedCategory, [
+          "specialty_id",
+          "speciality_id",
+          "especialidad_id",
+          "pc_especialidad",
+          "id_especialidad",
+        ]),
+      ) ??
+      positiveInteger(firstValue(value, ["especialidad", "specialty", "speciality"]));
+
     const specialtyName =
       stringValue(
         firstValue(value, [
           "specialty_name",
           "speciality_name",
           "especialidad",
+          "especialidad_nombre",
+          "especialidad_name",
+          "especialidadNombre",
+          "nombre_especialidad",
+          "nombreEspecialidad",
         ]),
-      ) ?? stringValue(firstValue(specialty, ["name", "title"]));
+      ) ??
+      stringValue(firstValue(specialty, ["name", "title", "label", "nombre"])) ??
+      stringValue(
+        firstValue(nestedCategory, [
+          "specialty_name",
+          "speciality_name",
+          "especialidad",
+          "especialidadNombre",
+          "nombre_especialidad",
+        ]),
+      );
 
     return id && name
       ? [{ id, name, specialtyId: specialtyId ?? undefined, specialtyName }]

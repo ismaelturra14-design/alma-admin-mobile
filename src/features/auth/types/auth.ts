@@ -9,14 +9,16 @@ export interface UserData {
   permissions: string[];
 }
 
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  access_expires_in?: number;
+}
+
 export interface LoginResponse {
   status: string;
   data: UserData;
-  tokens: {
-    access_token: string;
-    refresh_token: string;
-    access_expires_in: number;
-  };
+  tokens: AuthTokens;
 }
 
 export interface RefreshTokenRequest {

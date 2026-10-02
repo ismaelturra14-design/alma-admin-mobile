@@ -1,5 +1,5 @@
 import { PERMISSIONS } from "@/constants/permissions";
-import { ROLES } from "@/constants/roles";
+import { ROLE_GROUPS, ROLES } from "@/constants/roles";
 
 export type MenuItemRoute =
   | "Inicio"
@@ -162,6 +162,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
         route: "RolesPermisos",
         icon: "shield-checkmark-outline",
         section: "sistema",
+        permissions: [PERMISSIONS.VIEW_PERMISSION_MAINTAINER],
         requiredGroups: [ROLES.ADMINISTRADORES, ROLES.GERENCIA, ROLES.IT],
         visibleInDrawer: true,
       },
@@ -180,6 +181,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
         route: "BoxPantalla",
         icon: "desktop-outline",
         section: "sistema",
+        permissions: [PERMISSIONS.MANAGE_SCREENS],
         requiredGroups: [ROLES.ADMINISTRADORES, ROLES.GERENCIA, ROLES.IT],
         visibleInDrawer: true,
       },
@@ -274,11 +276,18 @@ export const drawerMenuSections: DrawerMenuSection[] = [
 ];
 
 export function getVisibleMenuSections(userGroupId?: number | null) {
+  const groupId = Number(userGroupId);
+  const isSuperAdmin = ROLE_GROUPS.SUPER_ADMIN.some((id) => id === groupId);
+
   return drawerMenuSections
     .map((section) => {
       const visibleItems = section.items.filter((item) => {
         if (!userGroupId) {
           return false;
+        }
+
+        if (isSuperAdmin) {
+          return item.visibleInDrawer !== false;
         }
 
         const requiredGroups = item.requiredGroups ?? [];
@@ -287,7 +296,7 @@ export function getVisibleMenuSections(userGroupId?: number | null) {
           return item.visibleInDrawer !== false;
         }
 
-        return requiredGroups.includes(Number(userGroupId));
+        return requiredGroups.includes(groupId);
       });
 
       return {

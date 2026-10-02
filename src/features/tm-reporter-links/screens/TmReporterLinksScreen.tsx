@@ -1,31 +1,31 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
-import { usersService } from "@/features/users/services/usersService";
+import { PaginatedList } from "@/components/ui/PaginatedList";
+import { PAGE_SIZE } from "@/constants/theme";
 import {
-  tmReporterLinksService,
-  type TmReporterLink,
+    tmReporterLinksService,
+    type TmReporterLink,
 } from "@/features/tm-reporter-links/services/tmReporterLinksService";
-import { colors } from "@/theme/colors";
+import { usersService } from "@/features/users/services/usersService";
 import type { SystemUser } from "@/features/users/types/users";
+import { colors } from "@/theme/colors";
 
 type PickerKind = "tm" | "reporter" | null;
 type LinkForm = { tmId: number | null; reporterId: number | null };
 type LinkRow = TmReporterLink & { tmLabel: string; reporterLabel: string };
-const PAGE_SIZES = [10, 25, 50, 100];
 
 function requestMessage(error: unknown, fallback: string): string {
   if (typeof error === "object" && error !== null && "response" in error) {
@@ -69,8 +69,6 @@ export function TmReporterLinksScreen() {
   const [actionIsError, setActionIsError] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [pageSizeMenuOpen, setPageSizeMenuOpen] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
   const [editing, setEditing] = useState<TmReporterLink | null>(null);
   const [form, setForm] = useState<LinkForm>(createEmptyForm);
@@ -195,14 +193,9 @@ export function TmReporterLinksScreen() {
         .includes(query),
     );
   }, [rows, search]);
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const visiblePage = Math.min(page, totalPages);
-  const visibleRows = filteredRows.slice(
-    (visiblePage - 1) * pageSize,
-    visiblePage * pageSize,
-  );
   const pickerUsers = picker === "tm" ? tmUsers : reporterUsers;
-  const pickerTitle = picker === "tm" ? "TM-CARDIO" : "INFORMANTE";
   const filteredPickerUsers = pickerUsers.filter((user) => {
     const query = pickerSearch.trim().toLocaleLowerCase();
     return (
@@ -212,6 +205,83 @@ export function TmReporterLinksScreen() {
         .includes(query)
     );
   });
+    const renderPicker = (kind: "tm" | "reporter") => {
+      if (picker !== kind) return null;
+      const selectedId = kind === "tm" ? form.tmId : form.reporterId;
+
+      return (
+        <View style={styles.inlinePicker}>
+          <Text style={styles.pickerInlineTitle}>
+            Seleccionar {kind === "tm" ? "TM-CARDIO" : "INFORMANTE"}
+          </Text>
+          <View style={styles.pickerSearch}>
+            <Ionicons
+              name="search-outline"
+              size={18}
+              color={colors.textSecondary}
+            />
+            <TextInput
+              value={pickerSearch}
+              onChangeText={setPickerSearch}
+              placeholder="Buscar por nombre o usuario"
+              placeholderTextColor="#94a3b8"
+              autoCapitalize="none"
+              style={styles.searchInput}
+            />
+          </View>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            style={styles.pickerList}
+          >
+            {filteredPickerUsers.length ? (
+              filteredPickerUsers.map((user) => (
+                <Pressable
+                  key={user.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedId === user.id }}
+                  style={[
+                    styles.pickerOption,
+                    selectedId === user.id && styles.pickerOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setForm((current) => ({
+                      ...current,
+                      ...(kind === "tm"
+                        ? { tmId: user.id }
+                        : { reporterId: user.id }),
+                    }));
+                    setPicker(null);
+                    setPickerSearch("");
+                  }}
+                >
+                  <View style={styles.pickerAvatar}>
+                    <Text style={styles.pickerAvatarText}>
+                      {displayName(user).slice(0, 1).toLocaleUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.pickerUserDetails}>
+                    <Text style={styles.personName}>{displayName(user)}</Text>
+                    <Text style={styles.username}>@{user.username}</Text>
+                  </View>
+                  {selectedId === user.id ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={19}
+                      color={colors.success}
+                    />
+                  ) : null}
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.pickerEmpty}>
+                No hay profesionales disponibles.
+              </Text>
+            )}
+          </ScrollView>
+        </View>
+      );
+    };
 
   const refresh = async () => {
     setRefreshing(true);
@@ -233,6 +303,12 @@ export function TmReporterLinksScreen() {
     setActionMessage("");
     setActionIsError(false);
     setFormVisible(true);
+  };
+  const closeForm = () => {
+    if (saving) return;
+    setFormVisible(false);
+    setPicker(null);
+    setPickerSearch("");
   };
   const submitForm = async () => {
     if (!form.tmId || !form.reporterId) {
@@ -301,8 +377,12 @@ export function TmReporterLinksScreen() {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={visibleRows}
+      <PaginatedList
+        data={filteredRows}
+        mode="client"
+        page={visiblePage}
+        totalItems={filteredRows.length}
+        onPageChange={setPage}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
@@ -352,108 +432,6 @@ export function TmReporterLinksScreen() {
               <Ionicons name="add-circle-outline" size={20} color="#fff" />
               <Text style={styles.createButtonText}>Ingresar vínculo</Text>
             </Pressable>
-            {formVisible ? (
-              <View style={styles.formCard}>
-                <View style={styles.formHeadingRow}>
-                  <Text style={styles.formTitle}>
-                    {editing ? "Editar vínculo" : "Nuevo vínculo"}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Cerrar formulario"
-                    onPress={() => setFormVisible(false)}
-                    disabled={saving}
-                  >
-                    <Ionicons
-                      name="close"
-                      size={22}
-                      color={colors.textSecondary}
-                    />
-                  </Pressable>
-                </View>
-                <Text style={styles.fieldLabel}>TM-CARDIO</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.selectButton}
-                  onPress={() => {
-                    setPicker("tm");
-                    setPickerSearch("");
-                  }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.selectText,
-                      !selectedTm && styles.placeholder,
-                    ]}
-                  >
-                    {selectedTm
-                      ? `${displayName(selectedTm)} (@${selectedTm.username})`
-                      : "Buscar y seleccionar TM-CARDIO"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-                <Text style={styles.fieldLabel}>INFORMANTE</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.selectButton}
-                  onPress={() => {
-                    setPicker("reporter");
-                    setPickerSearch("");
-                  }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.selectText,
-                      !selectedReporter && styles.placeholder,
-                    ]}
-                  >
-                    {selectedReporter
-                      ? `${displayName(selectedReporter)} (@${selectedReporter.username})`
-                      : "Buscar y seleccionar informante"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-                {formError ? (
-                  <Text accessibilityRole="alert" style={styles.formError}>
-                    {formError}
-                  </Text>
-                ) : null}
-                <View style={styles.formActions}>
-                  <Pressable
-                    style={styles.cancelButton}
-                    onPress={() => setFormVisible(false)}
-                    disabled={saving}
-                  >
-                    <Text style={styles.cancelText}>Cancelar</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.submitButton,
-                      saving && styles.disabledButton,
-                    ]}
-                    onPress={() => void submitForm()}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : null}
-                    <Text style={styles.submitText}>
-                      {editing ? "Guardar" : "Ingresar"}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
             <View style={styles.searchBox}>
               <Ionicons
                 name="search-outline"
@@ -495,54 +473,7 @@ export function TmReporterLinksScreen() {
                 {filteredRows.length}{" "}
                 {filteredRows.length === 1 ? "vínculo" : "vínculos"}
               </Text>
-              <View style={styles.pageSizeControl}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Mostrar registros: ${pageSize}`}
-                  accessibilityState={{ expanded: pageSizeMenuOpen }}
-                  style={styles.pageSizePicker}
-                  onPress={() => setPageSizeMenuOpen((open) => !open)}
-                >
-                  <Text style={styles.pageSizeLabel}>Mostrar registros</Text>
-                  <Text style={styles.pageSizeText}>{pageSize}</Text>
-                  <Ionicons
-                    name={pageSizeMenuOpen ? "chevron-up" : "chevron-down"}
-                    size={15}
-                    color={colors.textSecondary}
-                  />
-                </Pressable>
-                {pageSizeMenuOpen
-                  ? PAGE_SIZES.map((size) => (
-                      <Pressable
-                        key={size}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: pageSize === size }}
-                        style={[
-                          styles.pageSizeOption,
-                          pageSize === size && styles.pageSizeSelected,
-                        ]}
-                        onPress={() => {
-                          setPageSize(size);
-                          setPage(1);
-                          setPageSizeMenuOpen(false);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.pageSizeText,
-                            pageSize === size && styles.pageSizeTextSelected,
-                          ]}
-                        >
-                          {size}
-                        </Text>
-                      </Pressable>
-                    ))
-                  : null}
-              </View>
             </View>
-            <Text style={styles.pageText}>
-              Página {visiblePage} de {totalPages}
-            </Text>
           </View>
         }
         ListEmptyComponent={
@@ -608,133 +539,123 @@ export function TmReporterLinksScreen() {
             </View>
           </View>
         )}
-        ListFooterComponent={
-          <View style={styles.pagination}>
-            <Pressable
-              accessibilityRole="button"
-              style={[
-                styles.pageButton,
-                visiblePage <= 1 && styles.pageButtonDisabled,
-              ]}
-              disabled={visiblePage <= 1}
-              onPress={() => setPage(Math.max(1, visiblePage - 1))}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={18}
-                color={visiblePage <= 1 ? "#94a3b8" : colors.primaryDark}
-              />
-              <Text
-                style={[
-                  styles.pageButtonText,
-                  visiblePage <= 1 && styles.pageButtonTextDisabled,
-                ]}
-              >
-                Anterior
-              </Text>
-            </Pressable>
-            <Text style={styles.paginationText}>
-              {visiblePage} / {totalPages}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              style={[
-                styles.pageButton,
-                visiblePage >= totalPages && styles.pageButtonDisabled,
-              ]}
-              disabled={visiblePage >= totalPages}
-              onPress={() => setPage(Math.min(totalPages, visiblePage + 1))}
-            >
-              <Text
-                style={[
-                  styles.pageButtonText,
-                  visiblePage >= totalPages && styles.pageButtonTextDisabled,
-                ]}
-              >
-                Siguiente
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={
-                  visiblePage >= totalPages ? "#94a3b8" : colors.primaryDark
-                }
-              />
-            </Pressable>
-          </View>
-        }
       />
 
       <Modal
-        visible={picker !== null}
+        visible={formVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setPicker(null)}
+        onRequestClose={() => {
+          if (picker !== null) setPicker(null);
+          else closeForm();
+        }}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.pickerCard}>
+          <View style={styles.formModal}>
             <View style={styles.formHeadingRow}>
-              <Text style={styles.formTitle}>Seleccionar {pickerTitle}</Text>
+              <Text style={styles.formTitle}>
+                {editing ? "Editar vínculo" : "Nuevo vínculo"}
+              </Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Cerrar"
-                onPress={() => setPicker(null)}
+                accessibilityLabel="Cerrar formulario"
+                onPress={closeForm}
+                disabled={saving}
               >
-                <Ionicons name="close" size={22} color={colors.textSecondary} />
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color={colors.textSecondary}
+                />
               </Pressable>
-            </View>
-            <View style={styles.pickerSearch}>
-              <Ionicons
-                name="search-outline"
-                size={18}
-                color={colors.textSecondary}
-              />
-              <TextInput
-                autoFocus
-                value={pickerSearch}
-                onChangeText={setPickerSearch}
-                placeholder="Buscar por nombre o usuario"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="none"
-                style={styles.searchInput}
-              />
             </View>
             <ScrollView
               keyboardShouldPersistTaps="handled"
-              style={styles.pickerList}
+              style={styles.formScroll}
+              contentContainerStyle={styles.formScrollContent}
             >
-              {filteredPickerUsers.length ? (
-                filteredPickerUsers.map((user) => (
-                  <Pressable
-                    key={user.id}
-                    style={styles.pickerOption}
-                    onPress={() => {
-                      setForm((current) => ({
-                        ...current,
-                        ...(picker === "tm"
-                          ? { tmId: user.id }
-                          : { reporterId: user.id }),
-                      }));
-                      setPicker(null);
-                    }}
-                  >
-                    <View style={styles.pickerAvatar}>
-                      <Text style={styles.pickerAvatarText}>
-                        {displayName(user).slice(0, 1).toLocaleUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.pickerUserDetails}>
-                      <Text style={styles.personName}>{displayName(user)}</Text>
-                      <Text style={styles.username}>@{user.username}</Text>
-                    </View>
-                  </Pressable>
-                ))
-              ) : (
-                <Text style={styles.pickerEmpty}>
-                  No hay profesionales disponibles.
-                </Text>
-              )}
+            <Text style={styles.fieldLabel}>TM-CARDIO</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: picker === "tm" }}
+              style={styles.selectButton}
+              onPress={() => {
+                setPicker((current) => (current === "tm" ? null : "tm"));
+                setPickerSearch("");
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={[styles.selectText, !selectedTm && styles.placeholder]}
+              >
+                {selectedTm
+                  ? `${displayName(selectedTm)} (@${selectedTm.username})`
+                  : "Buscar y seleccionar TM-CARDIO"}
+              </Text>
+              <Ionicons
+                name={picker === "tm" ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+            {renderPicker("tm")}
+            <Text style={styles.fieldLabel}>INFORMANTE</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: picker === "reporter" }}
+              style={styles.selectButton}
+              onPress={() => {
+                setPicker((current) =>
+                  current === "reporter" ? null : "reporter",
+                );
+                setPickerSearch("");
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.selectText,
+                  !selectedReporter && styles.placeholder,
+                ]}
+              >
+                {selectedReporter
+                  ? `${displayName(selectedReporter)} (@${selectedReporter.username})`
+                  : "Buscar y seleccionar informante"}
+              </Text>
+              <Ionicons
+                name={picker === "reporter" ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+            {renderPicker("reporter")}
+            {formError ? (
+              <Text accessibilityRole="alert" style={styles.formError}>
+                {formError}
+              </Text>
+            ) : null}
             </ScrollView>
+            <View style={styles.formActions}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={closeForm}
+                disabled={saving}
+              >
+                <Text style={styles.cancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.submitButton, saving && styles.disabledButton]}
+                onPress={() => void submitForm()}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : null}
+                <Text style={styles.submitText}>
+                  {editing ? "Guardar" : "Ingresar"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -848,8 +769,8 @@ const styles = StyleSheet.create({
   errorText: { flex: 1, color: "#991b1b", fontSize: 13 },
   retryText: { color: "#991b1b", fontWeight: "800", fontSize: 12 },
   notice: {
-    backgroundColor: "#ecfdf5",
-    color: "#047857",
+    backgroundColor: colors.successBackground,
+    color: colors.success,
     borderRadius: 10,
     overflow: "hidden",
     padding: 11,
@@ -858,7 +779,7 @@ const styles = StyleSheet.create({
   },
   noticeError: { backgroundColor: "#fef2f2", color: "#b91c1c" },
   createButton: {
-    backgroundColor: "#16a34a",
+    backgroundColor: colors.primary,
     minHeight: 48,
     borderRadius: 12,
     flexDirection: "row",
@@ -869,13 +790,13 @@ const styles = StyleSheet.create({
   },
   createButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
   pressed: { opacity: 0.86 },
-  formCard: {
+  formModal: {
+    maxHeight: "85%",
     backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#bfdbfe",
-    padding: 15,
-    marginBottom: 15,
+    padding: 18,
   },
   formHeadingRow: {
     flexDirection: "row",
@@ -884,6 +805,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   formTitle: { color: colors.text, fontSize: 17, fontWeight: "800" },
+  formScroll: { flexShrink: 1 },
+  formScrollContent: { paddingBottom: 4 },
   fieldLabel: {
     color: colors.textSecondary,
     fontSize: 12,
@@ -933,7 +856,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 7,
     borderRadius: 10,
-    backgroundColor: "#16a34a",
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
   },
   deleteConfirmButton: {
@@ -1145,7 +1068,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: 8,
   },
-  pickerList: { flexGrow: 0 },
+  inlinePicker: {
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: "#fff",
+  },
+  pickerInlineTitle: {
+    marginBottom: 8,
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  pickerList: { flexGrow: 0, maxHeight: 180 },
   pickerOption: {
     minHeight: 60,
     flexDirection: "row",
@@ -1154,6 +1093,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#edf0f4",
     paddingVertical: 8,
   },
+  pickerOptionSelected: { backgroundColor: colors.successBackground },
   pickerAvatar: {
     width: 36,
     height: 36,

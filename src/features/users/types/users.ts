@@ -31,6 +31,16 @@ export type UserFacility = { id: number; name: string };
 export type UserSpecialty = { option_id: string; title: string };
 export type UserRegion = { id_region: number; region: string };
 export type UserCommune = { id: number; nombre: string; region: number };
+export type UserCategory = {
+  id: number;
+  codigo?: string;
+  nombre?: string;
+  name?: string;
+  specialty_id?: number | string | null;
+  pc_especialidad?: number | string | null;
+  active?: boolean | number | string;
+  pc_active?: boolean | number | string;
+};
 
 export type UserCatalogs = {
   groups: UserGroupOption[];

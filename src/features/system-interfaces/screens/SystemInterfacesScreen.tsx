@@ -1,24 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
-import { PERMISSIONS } from "@/constants/permissions";
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
+import { PaginatedList } from "@/components/ui/PaginatedList";
+import { PERMISSIONS } from "@/constants/permissions";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import {
-  systemInterfacesService,
-  type SystemInterface,
+    systemInterfacesService,
+    type SystemInterface,
 } from "@/features/system-interfaces/services/systemInterfacesService";
 import { colors } from "@/theme/colors";
 
@@ -177,7 +177,7 @@ export function SystemInterfacesScreen() {
         </View>
       ) : null}
 
-      <FlatList
+      <PaginatedList
         data={visibleInterfaces}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
@@ -263,7 +263,7 @@ export function SystemInterfacesScreen() {
                 <Ionicons
                   name="sync-outline"
                   size={20}
-                  color={isActive ? "#047857" : "#64748b"}
+                  color={isActive ? colors.success : colors.textSecondary}
                 />
               </View>
               <View style={styles.cardDetails}>
@@ -301,8 +301,8 @@ export function SystemInterfacesScreen() {
                       requestStatusChange(item, enabled)
                     }
                     disabled={updatingId !== null}
-                    trackColor={{ false: "#cbd5e1", true: "#86efac" }}
-                    thumbColor={isActive ? "#059669" : "#f8fafc"}
+                    trackColor={{ false: "#cbd5e1", true: colors.primarySoft }}
+                    thumbColor={isActive ? colors.primaryDark : "#f8fafc"}
                   />
                 )}
               </View>
@@ -334,7 +334,7 @@ export function SystemInterfacesScreen() {
                     : "pause-circle-outline"
                 }
                 size={26}
-                color={pendingChange?.nextStatus === 1 ? "#047857" : "#b45309"}
+                color={pendingChange?.nextStatus === 1 ? colors.success : "#b45309"}
               />
             </View>
             <Text style={styles.modalTitle}>
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   activeIcon: {
-    backgroundColor: "#d1fae5",
+    backgroundColor: colors.successBackground,
   },
   inactiveIcon: {
     backgroundColor: "#f1f5f9",
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   activeBadge: {
-    backgroundColor: "#ecfdf5",
+    backgroundColor: colors.successBackground,
   },
   inactiveBadge: {
     backgroundColor: "#f1f5f9",
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   activeDot: {
-    backgroundColor: "#059669",
+    backgroundColor: colors.primary,
   },
   inactiveDot: {
     backgroundColor: "#94a3b8",
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   activeText: {
-    color: "#047857",
+    color: colors.success,
   },
   inactiveText: {
     color: "#475569",
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   confirmEnable: {
-    backgroundColor: "#d1fae5",
+    backgroundColor: colors.successBackground,
   },
   confirmDisable: {
     backgroundColor: "#fef3c7",

@@ -6,7 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./src/images/almaIconApp.jpeg",
+    "icon": "./src/images/AlmaIconApp.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.almamedica.mobile"
@@ -15,7 +15,7 @@
       "package": "com.almamedica.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
-        "foregroundImage": "./src/images/almaIconApp.jpeg"
+        "foregroundImage": "./src/images/AlmaIconApp.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -38,7 +38,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#ffffff",
-          "image": "./src/images/almaIconApp.jpeg",
+          "image": "./src/images/AlmaIconApp.png",
           "imageWidth": 200
         }
       ],

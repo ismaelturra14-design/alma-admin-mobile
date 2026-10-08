@@ -12,6 +12,7 @@ import { Elevation, Motion, Radii, Spacing, Typography } from "@/constants/theme
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { getFriendlyErrorMessage } from "@/utils/apiError";
 
 export function LoginForm() {
   const { login } = useAuth();
@@ -21,24 +22,45 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
 
   const onSubmit = async () => {
-    if (!username.trim() || !password.trim()) {
-      setError("Usuario y contraseña son obligatorios.");
+    const nextUsername = username.trim();
+    const nextPassword = password.trim();
+    const errors: { username?: string; password?: string } = {};
+
+    if (!nextUsername) {
+      errors.username = "Ingresa tu usuario.";
+    }
+    if (!nextPassword) {
+      errors.password = "Ingresa tu contraseña.";
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("Revisa los datos ingresados antes de continuar.");
       return;
     }
 
     try {
       setLoading(true);
       setError("");
-      await login(username.trim(), password);
+      await login(nextUsername, nextPassword);
       router.replace({ pathname: "/home" });
     } catch (requestError) {
-      const message =
-        requestError instanceof Error && requestError.message
-          ? requestError.message
-          : "No se pudo iniciar sesión.";
-      setError(message);
+      const message = getFriendlyErrorMessage(
+        requestError,
+        "No se pudo iniciar sesión. Inténtalo nuevamente.",
+      );
+      const status = typeof requestError === "object" && requestError !== null && "response" in requestError
+        ? Number((requestError as { response?: { status?: number } }).response?.status)
+        : undefined;
+
+      setError(
+        status === 401
+          ? "Credenciales inválidas. Verifica tu usuario y contraseña."
+          : message,
+      );
     } finally {
       setLoading(false);
     }
@@ -76,22 +98,40 @@ export function LoginForm() {
             label="Usuario"
             placeholder="Ingrese su usuario"
             value={username}
-            onChangeText={setUsername}
+            onChangeText={(nextValue) => {
+              setUsername(nextValue);
+              if (fieldErrors.username) {
+                setFieldErrors((current) => ({ ...current, username: undefined }));
+              }
+              if (error) {
+                setError("");
+              }
+            }}
             autoCapitalize="none"
             autoCorrect={false}
             autoComplete="username"
             returnKeyType="next"
+            error={fieldErrors.username}
           />
 
           <Input
             label="Contraseña"
             placeholder="Ingrese su contraseña"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(nextValue) => {
+              setPassword(nextValue);
+              if (fieldErrors.password) {
+                setFieldErrors((current) => ({ ...current, password: undefined }));
+              }
+              if (error) {
+                setError("");
+              }
+            }}
             secureTextEntry
             autoComplete="current-password"
             returnKeyType="go"
             onSubmitEditing={() => void onSubmit()}
+            error={fieldErrors.password}
           />
 
           <Button

@@ -39,17 +39,48 @@ function readableLabel(value: string): string {
     permisos_nuevos: "Permisos actuales",
     permisos_agregados: "Permisos agregados",
     permisos_removidos: "Permisos retirados",
-    user_id: "ID de usuario",
-    usuario_id: "ID de usuario",
+    old_state: "Estado anterior",
+    previous_state: "Estado anterior",
+    new_state: "Estado nuevo",
+    current_state: "Estado actual",
+    changed_fields: "Campos modificados",
+    field: "Campo",
+    old_value: "Valor anterior",
+    new_value: "Valor nuevo",
+    description: "Descripción",
+    status: "Estado",
+    active: "Activo",
+    is_active: "Activo",
+    enabled: "Habilitado",
+    created_at: "Fecha de creación",
+    updated_at: "Última actualización",
+    user_name: "Usuario",
+    usuario_nombre: "Usuario",
+    professional_name: "Profesional",
+    profesional_nombre: "Profesional",
+    specialty_name: "Especialidad",
+    especialidad_nombre: "Especialidad",
+    user_id: "Usuario",
+    usuario_id: "Usuario",
+    professional_id: "Profesional",
+    profesional_id: "Profesional",
+    specialty_id: "Especialidad",
+    especialidad_id: "Especialidad",
     permission_id: "ID de permiso",
     permiso_id: "ID de permiso",
+    group_id: "ID de grupo",
+    role_id: "ID de rol",
     record_id: "ID del registro",
     ip_address: "Dirección IP",
     id: "Identificador",
     iden: "Identificador",
   };
 
-  const normalized = value.trim().toLocaleLowerCase();
+  const normalized = value
+    .trim()
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLocaleLowerCase();
   if (knownLabels[normalized]) {
     return knownLabels[normalized];
   }
@@ -125,10 +156,63 @@ function renderDetailValue(value: unknown): string | null {
   }
   if (
     typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
+    typeof value === "number"
   ) {
     return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+  return null;
+}
+
+function isDetailRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function findRelatedName(
+  label: string,
+  context: Record<string, unknown> | undefined,
+): string | null {
+  if (!context || !/(?:^|_)(?:id)$/i.test(label)) {
+    return null;
+  }
+
+  const key = label
+    .trim()
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLocaleLowerCase();
+  const entity = key.replace(/_?id$/, "");
+  const aliases: Record<string, string[]> = {
+    user: ["user", "usuario"],
+    usuario: ["usuario", "user"],
+    professional: ["professional", "profesional"],
+    profesional: ["profesional", "professional"],
+    specialty: ["specialty", "especialidad"],
+    especialidad: ["especialidad", "specialty"],
+    permission: ["permission", "permiso"],
+    permiso: ["permiso", "permission"],
+    group: ["group", "grupo"],
+    grupo: ["grupo", "group"],
+    role: ["role", "rol"],
+    rol: ["rol", "role"],
+  };
+  const entityNames = aliases[entity] ?? [entity];
+  const nameKeys = entityNames.flatMap((name) => [
+    `${name}_name`,
+    `${name}_nombre`,
+    `${name}_label`,
+    `nombre_${name}`,
+    `name_${name}`,
+  ]);
+
+  for (const nameKey of nameKeys) {
+    const value = context[nameKey];
+    const displayValue = renderDetailValue(value);
+    if (displayValue !== null) {
+      return displayValue;
+    }
   }
   return null;
 }
@@ -151,6 +235,7 @@ export function AuditPermissionsScreen() {
   const [selectedRecord, setSelectedRecord] = useState<AuditRecord | null>(
     null,
   );
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   const loadPage = useCallback(async (requestedPage: number) => {
     if (!canView) {
@@ -354,7 +439,10 @@ export function AuditPermissionsScreen() {
               styles.auditCard,
               pressed && styles.cardPressed,
             ]}
-            onPress={() => setSelectedRecord(item)}
+            onPress={() => {
+              setDetailsExpanded(false);
+              setSelectedRecord(item);
+            }}
           >
             <View style={styles.cardTopRow}>
               <View style={styles.eventIcon}>
@@ -455,14 +543,43 @@ export function AuditPermissionsScreen() {
 
                 {Object.keys(selectedRecord.details).length ? (
                   <View style={styles.detailsSection}>
-                    <Text style={styles.sectionHeading}>
-                      Cambios y detalles
-                    </Text>
-                    {Object.entries(selectedRecord.details).map(
-                      ([key, value]) => (
-                        <DetailEntry key={key} label={key} value={value} />
-                      ),
-                    )}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: detailsExpanded }}
+                      accessibilityLabel={
+                        detailsExpanded
+                          ? "Ocultar cambios y detalles"
+                          : `Ver cambios y detalles, ${Object.keys(selectedRecord.details).length} elementos`
+                      }
+                      style={styles.detailsToggle}
+                      onPress={() => setDetailsExpanded((expanded) => !expanded)}
+                    >
+                      <View style={styles.detailsToggleText}>
+                        <Text style={styles.sectionHeading}>
+                          Cambios y detalles
+                        </Text>
+                        <Text style={styles.detailsCount}>
+                          {Object.keys(selectedRecord.details).length} elementos
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={detailsExpanded ? "chevron-up" : "chevron-down"}
+                        size={20}
+                        color={colors.primaryDark}
+                      />
+                    </Pressable>
+                    {detailsExpanded
+                      ? Object.entries(selectedRecord.details).map(
+                          ([key, value]) => (
+                            <DetailEntry
+                              key={key}
+                              label={key}
+                              value={value}
+                              context={selectedRecord.details}
+                            />
+                          ),
+                        )
+                      : null}
                   </View>
                 ) : (
                   <View style={styles.noDetails}>
@@ -494,14 +611,34 @@ function Metadata({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DetailEntry({ label, value }: { label: string; value: unknown }) {
+function DetailEntry({
+  label,
+  value,
+  context,
+}: {
+  label: string;
+  value: unknown;
+  context?: Record<string, unknown>;
+}) {
   const displayLabel = readableLabel(label);
   const normalizedValue =
     typeof value === "string" ? parseStructuredString(value) : value;
   const scalarValue = renderDetailValue(normalizedValue);
+  const relatedName = findRelatedName(label, context);
   const isPermissionList =
     Array.isArray(normalizedValue) && /permis|permission/i.test(label);
   const isPermissionContext = /permis|permission/i.test(label);
+  const isOldState = /^(?:old|previous|estado_anterior)/i.test(
+    label.replace(/([a-z])([A-Z])/g, "$1_$2").replace(/[\s-]+/g, "_"),
+  );
+  const isNewState = /^(?:new|current|estado_nuevo|estado_actual)/i.test(
+    label.replace(/([a-z])([A-Z])/g, "$1_$2").replace(/[\s-]+/g, "_"),
+  );
+  const stateStyle = isOldState
+    ? styles.oldStateEntry
+    : isNewState
+      ? styles.newStateEntry
+      : null;
   const permissionLabel =
     isPermissionContext && typeof scalarValue === "string"
       ? describePermissionCode(scalarValue)
@@ -509,9 +646,14 @@ function DetailEntry({ label, value }: { label: string; value: unknown }) {
 
   if (scalarValue !== null) {
     return (
-      <View style={styles.detailEntry}>
+      <View style={[styles.detailEntry, stateStyle]}>
         <Text style={styles.detailLabel}>{displayLabel}</Text>
-        {permissionLabel ? (
+        {relatedName ? (
+          <>
+            <Text style={styles.detailValue}>{relatedName}</Text>
+            <Text style={styles.technicalValue}>ID {scalarValue}</Text>
+          </>
+        ) : permissionLabel ? (
           <>
             <Text style={styles.detailValue}>{permissionLabel}</Text>
             <Text style={styles.technicalValue}>{scalarValue}</Text>
@@ -525,7 +667,7 @@ function DetailEntry({ label, value }: { label: string; value: unknown }) {
 
   if (Array.isArray(normalizedValue)) {
     return (
-      <View style={styles.detailEntry}>
+      <View style={[styles.detailEntry, stateStyle]}>
         <Text style={styles.detailLabel}>{displayLabel}</Text>
         {normalizedValue.length ? (
           <View style={styles.chipList}>
@@ -562,10 +704,10 @@ function DetailEntry({ label, value }: { label: string; value: unknown }) {
     );
   }
 
-  if (typeof normalizedValue === "object" && normalizedValue !== null) {
+  if (isDetailRecord(normalizedValue)) {
     const entries = Object.entries(normalizedValue);
     return (
-      <View style={styles.detailEntry}>
+      <View style={[styles.detailEntry, stateStyle]}>
         <Text style={styles.detailLabel}>{displayLabel}</Text>
         {entries.length ? (
           <View style={styles.nestedDetails}>
@@ -574,6 +716,7 @@ function DetailEntry({ label, value }: { label: string; value: unknown }) {
                 key={`${label}-${key}`}
                 label={key}
                 value={nestedValue}
+                context={normalizedValue}
               />
             ))}
           </View>
@@ -587,7 +730,7 @@ function DetailEntry({ label, value }: { label: string; value: unknown }) {
   }
 
   return (
-    <View style={styles.detailEntry}>
+    <View style={[styles.detailEntry, stateStyle]}>
       <Text style={styles.detailLabel}>{displayLabel}</Text>
       <Text style={styles.emptyPermissionText}>
         Sin información disponible.
@@ -806,18 +949,41 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   metadataValue: { color: colors.text, fontSize: 14, fontWeight: "600" },
-  detailsSection: { marginTop: 20 },
+  detailsSection: {
+    marginTop: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    overflow: "hidden",
+  },
+  detailsToggle: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#f8fafc",
+  },
+  detailsToggleText: { flex: 1 },
+  detailsCount: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 3,
+  },
   sectionHeading: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
-    marginBottom: 4,
   },
   detailEntry: {
+    paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eef2f7",
   },
+  oldStateEntry: { backgroundColor: "#fff1f2" },
+  newStateEntry: { backgroundColor: "#f0fdf4" },
   detailLabel: {
     color: colors.textSecondary,
     fontSize: 13,

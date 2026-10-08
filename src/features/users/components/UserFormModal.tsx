@@ -219,6 +219,7 @@ function SelectField({
   options,
   placeholder,
   error,
+  searchable = false,
   onSelect,
 }: {
   label: string;
@@ -226,18 +227,41 @@ function SelectField({
   options: Option[];
   placeholder: string;
   error?: string;
+  searchable?: boolean;
   onSelect: (value: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [search, setSearch] = useState("");
   const selected = options.find((option) => option.value === value);
+  const normalizedSearch = search
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase();
+  const visibleOptions = searchable
+    ? options.filter((option) =>
+        option.label
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase()
+          .includes(normalizedSearch),
+      )
+    : options;
+
+  const toggleExpanded = () => {
+    setSearch("");
+    setExpanded((current) => !current);
+  };
+
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${selected?.label ?? placeholder}`}
+        accessibilityState={{ expanded }}
         style={[styles.selectButton, error ? styles.inputError : null]}
-        onPress={() => setExpanded((current) => !current)}
+        onPress={toggleExpanded}
         disabled={!options.length}
       >
         <Text
@@ -255,26 +279,56 @@ function SelectField({
       </Pressable>
       {expanded ? (
         <View style={styles.optionsBox}>
+          {searchable ? (
+            <View style={styles.searchInputContainer}>
+              <Ionicons
+                name="search-outline"
+                size={17}
+                color={colors.textSecondary}
+              />
+              <TextInput
+                accessibilityLabel={`Buscar ${label}`}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Buscar..."
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.searchInput}
+              />
+            </View>
+          ) : null}
           <ScrollView
             nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
             style={styles.optionsScroll}
           >
-            {options.map((option) => (
-              <Pressable
-                key={option.value}
-                style={styles.optionRow}
-                onPress={() => {
-                  onSelect(option.value);
-                  setExpanded(false);
-                }}
-              >
-                <Text style={styles.optionText}>{option.label}</Text>
-                {option.value === value ? (
-                  <Ionicons name="checkmark" size={18} color={colors.primary} />
-                ) : null}
-              </Pressable>
-            ))}
+            {visibleOptions.length ? (
+              visibleOptions.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={styles.optionRow}
+                  onPress={() => {
+                    onSelect(option.value);
+                    setExpanded(false);
+                    setSearch("");
+                  }}
+                >
+                  <Text style={styles.optionText}>{option.label}</Text>
+                  {option.value === value ? (
+                    <Ionicons
+                      name="checkmark"
+                      size={18}
+                      color={colors.primary}
+                    />
+                  ) : null}
+                </Pressable>
+              ))
+            ) : (
+              <Text style={styles.noSearchResults}>
+                No se encontraron resultados
+              </Text>
+            )}
           </ScrollView>
         </View>
       ) : null}
@@ -742,6 +796,7 @@ export function UserFormModal({
                 <SelectField
                   label="Región"
                   value={form.state}
+                  searchable
                   options={catalogs.regions.map((region) => ({
                     value: String(region.id_region),
                     label: region.region,
@@ -755,6 +810,7 @@ export function UserFormModal({
                 <SelectField
                   label="Comuna"
                   value={form.city}
+                  searchable
                   options={communeOptions}
                   placeholder={
                     form.state
@@ -840,7 +896,9 @@ export function UserFormModal({
                 />
                 <View style={styles.authorizedRow}>
                   <View style={styles.authorizedCopy}>
-                    <Text style={styles.fieldLabel}>Usuario autorizado</Text>
+                    <Text style={styles.authorizedLabel}>
+                      Usuario autorizado
+                    </Text>
                     <Text style={styles.authorizedHint}>
                       Permite el estado autorizado registrado por el sistema.
                     </Text>
@@ -849,8 +907,8 @@ export function UserFormModal({
                     accessibilityLabel="Usuario autorizado"
                     value={form.authorized}
                     onValueChange={(value) => onChange("authorized", value)}
-                    trackColor={{ false: "#cbd5e1", true: colors.primarySoft }}
-                    thumbColor={form.authorized ? colors.primaryDark : "#f8fafc"}
+                    trackColor={{ false: "#64748b", true: colors.primaryDark }}
+                    thumbColor="#fff"
                   />
                 </View>
                 <Field
@@ -1052,7 +1110,29 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     overflow: "hidden",
   },
+  searchInputContainer: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 42,
+    paddingVertical: 8,
+    color: colors.text,
+    fontSize: 14,
+  },
   optionsScroll: { flexGrow: 0 },
+  noSearchResults: {
+    padding: 12,
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
   optionRow: {
     minHeight: 43,
     flexDirection: "row",
@@ -1176,11 +1256,16 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#e2e8f0",
   },
   authorizedCopy: { flex: 1 },
+  authorizedLabel: {
+    color: "#0f172a",
+    fontSize: 14,
+    fontWeight: "800",
+  },
   authorizedHint: {
-    color: colors.textSecondary,
+    color: "#334155",
     fontSize: 11,
     lineHeight: 16,
     marginTop: 3,

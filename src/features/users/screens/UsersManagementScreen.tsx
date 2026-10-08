@@ -141,8 +141,7 @@ type UserFilter =
   | "active"
   | "inactive"
   | "authorized"
-  | "unauthorized"
-  | "no-rut";
+  | "unauthorized";
 
 const userFilters: { id: UserFilter; label: string }[] = [
   { id: "all", label: "Todos" },
@@ -150,7 +149,6 @@ const userFilters: { id: UserFilter; label: string }[] = [
   { id: "inactive", label: "Inactivos" },
   { id: "authorized", label: "Autorizados" },
   { id: "unauthorized", label: "No autorizados" },
-  { id: "no-rut", label: "Sin RUT" },
 ];
 
 function normalizedSearch(value: string): string {
@@ -219,7 +217,7 @@ export function UsersManagementScreen() {
             : userFilter === "unauthorized"
               ? "unauthorized"
               : "all",
-        hasRut: userFilter === "no-rut" ? false : null,
+        hasRut: null,
       });
       setListError("");
       setUsers(result.users);
@@ -309,8 +307,7 @@ export function UsersManagementScreen() {
         (userFilter === "active" && active) ||
         (userFilter === "inactive" && !active) ||
         (userFilter === "authorized" && authorized) ||
-        (userFilter === "unauthorized" && !authorized) ||
-        (userFilter === "no-rut" && !user.federaltaxid?.trim());
+        (userFilter === "unauthorized" && !authorized);
       return matchesQuery && matchesFilter;
     });
   }, [debouncedSearch, search, serverPaginated, userFilter, users]);

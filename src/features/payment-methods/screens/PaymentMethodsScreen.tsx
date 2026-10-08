@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -15,6 +14,7 @@ import {
     View,
 } from "react-native";
 
+import { ConfirmDialog } from "@/components/ui/DesignSystem";
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
 import { PaginatedList } from "@/components/ui/PaginatedList";
 import {
@@ -22,39 +22,20 @@ import {
     type PaymentMethod,
 } from "@/features/payment-methods/services/paymentMethodsService";
 import { colors } from "@/theme/colors";
-
-function readMessage(value: unknown): string | undefined {
-  if (typeof value === "string" && value.trim()) {
-    return value.trim();
-  }
-
-  if (typeof value === "object" && value !== null && "message" in value) {
-    const message = value.message;
-    if (typeof message === "string" && message.trim()) {
-      return message.trim();
-    }
-    if (Array.isArray(message)) {
-      const messages = message.filter(
-        (item): item is string => typeof item === "string" && item.trim() !== "",
-      );
-      if (messages.length) {
-        return messages.join(" ");
-      }
-    }
-  }
-
-  return undefined;
-}
+import { getFriendlyErrorMessage } from "@/utils/apiError";
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (axios.isAxiosError(error)) {
-    return readMessage(error.response?.data) ?? fallback;
-  }
-  return fallback;
+  return getFriendlyErrorMessage(error, fallback);
 }
 
 function getSuccessMessage(response: unknown, fallback: string): string {
-  return readMessage(response) ?? fallback;
+  if (typeof response === "object" && response !== null && "message" in response) {
+    const nextMessage = response.message;
+    if (typeof nextMessage === "string" && nextMessage.trim()) {
+      return nextMessage.trim();
+    }
+  }
+  return fallback;
 }
 
 export function PaymentMethodsScreen() {
@@ -357,14 +338,19 @@ export function PaymentMethodsScreen() {
               <TextInput
                 accessibilityLabel="Nombre del método de pago"
                 value={name}
-                onChangeText={setName}
+                onChangeText={(nextValue) => {
+                  setName(nextValue);
+                  if (formError) {
+                    setFormError("");
+                  }
+                }}
                 placeholder="Ej. Transferencia bancaria"
                 placeholderTextColor="#94a3b8"
                 autoCapitalize="sentences"
                 returnKeyType="done"
                 editable={!isSaving}
                 onSubmitEditing={() => void saveMethod()}
-                style={styles.nameInput}
+                style={[styles.nameInput, formError ? { borderColor: colors.error } : null]}
               />
               {formError ? (
                 <Text accessibilityRole="alert" style={styles.formError}>{formError}</Text>
@@ -391,46 +377,28 @@ export function PaymentMethodsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal
+      <ConfirmDialog
         visible={deleteTarget !== null}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setDeleteTarget(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.confirmModal}>
-            <View style={styles.confirmIcon}>
-              <Ionicons name="trash-outline" size={24} color={colors.error} />
-            </View>
-            <Text style={styles.modalTitle}>Eliminar método</Text>
-            <Text style={styles.confirmBody}>
-              ¿Seguro que deseas eliminar “{deleteTarget?.nombre}”?
-            </Text>
-            {deleteError ? (
-              <Text accessibilityRole="alert" style={styles.formError}>{deleteError}</Text>
-            ) : null}
-            <View style={styles.formActions}>
-              <Pressable
-                style={styles.cancelButton}
-                onPress={() => setDeleteTarget(null)}
-                disabled={deletingId !== null}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
-                onPress={() => void confirmDelete()}
-                disabled={deletingId !== null}
-              >
-                {deletingId !== null ? <ActivityIndicator color="#fff" /> : (
-                  <Text style={styles.saveButtonText}>Eliminar</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
+        title="Eliminar método"
+        message={
+          deleteTarget
+            ? `¿Deseas eliminar este registro?\n\n"${deleteTarget.nombre}"\n\nEsta acción no se puede deshacer.`
+            : "¿Deseas eliminar este registro?"
+        }
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        destructive
+        loading={deletingId !== null}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+      {deleteError ? (
+        <View style={[styles.messageBanner, { marginTop: 4, marginHorizontal: 16 }]}>
+          <Text accessibilityRole="alert" style={styles.errorText}>{deleteError}</Text>
         </View>
-      </Modal>
+      ) : null}
     </View>
   );
 }

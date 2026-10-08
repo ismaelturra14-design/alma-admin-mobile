@@ -5,9 +5,10 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 
 type InputProps = TextInputProps & {
   label?: string;
+  error?: string;
 };
 
-export function Input({ label, style, ...props }: InputProps) {
+export function Input({ label, style, error, ...props }: InputProps) {
   const { colors } = useAppTheme();
   return (
     <View style={styles.container}>
@@ -15,9 +16,18 @@ export function Input({ label, style, ...props }: InputProps) {
       <TextInput
         {...props}
         accessibilityLabel={props.accessibilityLabel ?? label}
-        style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }, style]}
+        style={[
+          styles.input,
+          {
+            borderColor: error ? colors.error : colors.border,
+            backgroundColor: colors.surface,
+            color: colors.text,
+          },
+          style,
+        ]}
         placeholderTextColor={colors.muted}
       />
+      {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -38,5 +48,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     fontSize: 16,
+  },
+  errorText: {
+    marginTop: Spacing.one,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

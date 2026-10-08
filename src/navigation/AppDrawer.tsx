@@ -21,8 +21,10 @@ import { useAuth } from "@/features/auth/context/AuthContext";
 import { subscribeToApiForbidden } from "@/features/auth/services/authSessionEvents";
 import { BoxScreensScreen } from "@/features/box-screens/screens/BoxScreensScreen";
 import { EmrLinksScreen } from "@/features/emr-links/screens/EmrLinksScreen";
+import { GroupMaintenanceScreen } from "@/features/group-maintenance/screens/GroupMaintenanceScreen";
 import { HomeOverview } from "@/features/home/components/HomeOverview";
 import { PaymentMethodsScreen } from "@/features/payment-methods/screens/PaymentMethodsScreen";
+import { PrestacionesScreen } from "@/features/prestaciones/screens/PrestacionesScreen";
 import { RolePermissionsScreen } from "@/features/role-permissions/screens/RolePermissionsScreen";
 import { MantenedorPantallasScreen } from "@/features/screen-maintenance/screens/MantenedorPantallasScreen";
 import { SpecialtyGroupingScreen } from "@/features/specialty-groups/screens/SpecialtyGroupingScreen";
@@ -269,8 +271,12 @@ export function AppDrawer() {
             <MantenedorPantallasScreen />
           ) : activeScreen.id === "metodos-pago" ? (
             <PaymentMethodsScreen />
+          ) : activeScreen.id === "prestaciones" ? (
+            <PrestacionesScreen />
           ) : activeScreen.id === "usuarios-del-sistema" ? (
             <UsersManagementScreen />
+          ) : activeScreen.id === "mantenedor-grupos" ? (
+            <GroupMaintenanceScreen />
           ) : activeScreen.id === "auditoria-permisos" ? (
             <AuditPermissionsScreen />
           ) : activeScreen.id === "roles-permisos" ? (

@@ -6,6 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./src/images/almaIconApp.jpeg",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.almamedica.mobile"
@@ -13,10 +14,8 @@
     "android": {
       "package": "com.almamedica.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#effaff",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./src/images/almaIconApp.jpeg"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -38,9 +37,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#07566f",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#ffffff",
+          "image": "./src/images/almaIconApp.jpeg",
+          "imageWidth": 200
         }
       ],
       [
@@ -72,6 +71,13 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1fc8c309-6645-4d91-8af3-eabaf379a1cc"
+      }
+    },
+    "owner": "ueuismaaaaa"
   }
 }

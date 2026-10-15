@@ -292,7 +292,7 @@ export function PaymentMethodsScreen() {
                 style={styles.iconButton}
                 onPress={() => openEditForm(item)}
               >
-                <Ionicons name="create-outline" size={20} color={colors.primaryDark} />
+                <Ionicons name="create-outline" size={20} color={colors.primary} />
               </Pressable>
               <Pressable
                 accessibilityRole="button"

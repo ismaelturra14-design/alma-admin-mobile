@@ -3,17 +3,17 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    BackHandler,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    useWindowDimensions,
+  BackHandler,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AccessDeniedScreen } from "@/components/auth/AccessDeniedScreen";
 import { ActionButton } from "@/components/ui/ActionButton";
@@ -310,7 +310,12 @@ export function AppDrawer() {
               }
             />
           ) : activeScreen.id === "inicio" ? (
-            <HomeOverview user={user} menuSections={menuSections} onSelectModule={handleSelectModule} />
+            <HomeOverview
+              user={user}
+              menuSections={menuSections}
+              onSelectModule={handleSelectModule}
+              onOpenMenu={() => setIsOpen(true)}
+            />
           ) : activeScreen.id === "box-pantalla" ? (
             <BoxScreensScreen />
           ) : activeScreen.id === "mantenedor-pantallas" ? (
@@ -351,7 +356,7 @@ export function AppDrawer() {
           pointerEvents={isOpen ? "auto" : "none"}
           style={[styles.drawer, { width: drawerWidth, backgroundColor: colors.surface, borderRightColor: colors.border }, drawerAnimatedStyle]}
         >
-          <View style={[styles.drawerHeader, { backgroundColor: colors.primarySoft, borderBottomColor: colors.border }]}>
+          <View style={[styles.drawerHeader, { backgroundColor: colors.primaryStrong, borderBottomColor: colors.border }]}>
             <View style={styles.drawerBrandRow}>
               <View style={[styles.drawerLogoFrame, { borderColor: colors.border, backgroundColor: colors.surface }]}>
                 <Image
@@ -362,21 +367,22 @@ export function AppDrawer() {
                 />
               </View>
               <View style={styles.drawerBrandCopy}>
-                <Text style={[styles.drawerBrand, { color: colors.primaryStrong }]}>Alma Admin</Text>
-                <Text style={[styles.drawerTagline, { color: colors.primary }]}>GESTIÓN CLÍNICA</Text>
+                <Text style={[styles.drawerBrand, { color: colors.surface }]}>Alma Médica</Text>
               </View>
             </View>
-            <View style={styles.drawerProfile}>
+            <View style={[styles.drawerProfile, { backgroundColor: colors.surface }]}>
               <View style={[styles.drawerAvatar, { backgroundColor: colors.surfaceSelected }]}>
                 <Text style={[styles.drawerAvatarText, { color: colors.primaryStrong }]}>{initials}</Text>
               </View>
               <View style={styles.drawerProfileCopy}>
-                <Text style={[styles.drawerUserName, { color: colors.primaryStrong }]} numberOfLines={1}>
+                <Text style={[styles.drawerUserName, { color: colors.text }]} numberOfLines={1}>
                   {fullName}
                 </Text>
-                <Text style={[styles.drawerUserMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {groupName}
-                </Text>
+                <View style={[styles.drawerRoleBadge, { backgroundColor: colors.primarySoft }]}>
+                  <Text style={[styles.drawerUserMeta, { color: colors.primaryStrong }]} numberOfLines={1}>
+                    {groupName}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -508,29 +514,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   drawerLogoFrame: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.three,
-    borderRadius: Radii.large,
+    borderRadius: Radii.medium,
     borderWidth: 1,
   },
   drawerLogo: {
-    width: 56,
-    height: 50,
+    width: 48,
+    height: 44,
   },
   drawerBrandCopy: {
     flex: 1,
   },
-  drawerTagline: {
-    marginTop: Spacing.one,
-    ...Typography.caption,
-    fontWeight: "800",
-  },
   drawerBrand: {
-    ...Typography.h2,
+    ...Typography.bodyStrong,
   },
   drawerProfile: {
     flexDirection: "row",
@@ -540,11 +541,11 @@ const styles = StyleSheet.create({
     borderRadius: Radii.medium,
   },
   drawerAvatar: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: Spacing.two,
+    marginRight: Spacing.three,
     borderRadius: Radii.pill,
   },
   drawerAvatarText: {
@@ -555,12 +556,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drawerUserName: {
-    ...Typography.caption,
+    ...Typography.bodyStrong,
     fontWeight: "700",
+  },
+  drawerRoleBadge: {
+    alignSelf: "flex-start",
+    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Radii.pill,
+    maxWidth: "100%",
   },
   drawerUserMeta: {
     ...Typography.caption,
-    marginTop: Spacing.one,
+    fontWeight: "600",
   },
   drawerBody: {
     flex: 1,

@@ -748,7 +748,7 @@ export function EmrLinksScreen() {
                     <Ionicons
                       name="create-outline"
                       size={18}
-                      color={colors.primaryDark}
+                      color={colors.primary}
                     />
                     <Text style={styles.editActionText}>Editar</Text>
                   </Pressable>
@@ -1113,7 +1113,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   editActionText: {
-    color: colors.primaryDark,
+    color: colors.primary,
     fontSize: 12,
     fontWeight: "700",
   },

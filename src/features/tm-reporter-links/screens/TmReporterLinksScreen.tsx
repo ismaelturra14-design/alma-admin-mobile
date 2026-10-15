@@ -523,7 +523,7 @@ export function TmReporterLinksScreen() {
                 <Ionicons
                   name="create-outline"
                   size={19}
-                  color={colors.primaryDark}
+                  color={colors.primary}
                 />
                 <Text style={styles.editActionText}>Editar</Text>
               </Pressable>
@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   editActionText: {
-    color: colors.primaryDark,
+    color: colors.primary,
     fontSize: 9,
     fontWeight: "700",
     marginTop: 1,

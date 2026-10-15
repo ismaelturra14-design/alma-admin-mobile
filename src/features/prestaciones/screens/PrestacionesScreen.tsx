@@ -898,7 +898,7 @@ export function PrestacionesScreen() {
                   onPress={() => void openEditForm(selectedPrestacion)}
                   disabled={detailLoading || Boolean(detailError) || statusUpdatingId === selectedPrestacion.id}
                 >
-                  <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+                  <Ionicons name="create-outline" size={16} color={colors.primary} />
                   <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>
                     {detailLoading ? 'Cargando…' : 'Editar'}
                   </Text>
@@ -1027,7 +1027,7 @@ export function PrestacionesScreen() {
                         style={[styles.cardActionButton, { borderColor: colors.border }]}
                         onPress={() => void editPrestacionFromList(prestacion)}
                       >
-                        <Ionicons name="pencil-outline" size={16} color={colors.primary} />
+                        <Ionicons name="create-outline" size={16} color={colors.primary} />
                         <Text style={[styles.cardActionText, { color: colors.primary }]}>Editar</Text>
                       </Pressable>
                       <Pressable

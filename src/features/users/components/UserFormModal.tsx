@@ -424,6 +424,16 @@ function ImageAttachment({
   const chooseImage = async () => {
     try {
       setPickerError("");
+      if (Platform.OS === "ios") {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          setPickerError(
+            "Permite el acceso a Fotos en los ajustes de iOS para seleccionar una imagen.",
+          );
+          return;
+        }
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: false,

@@ -355,7 +355,7 @@ export function MantenedorPantallasScreen() {
                 <Ionicons
                   name="create-outline"
                   size={20}
-                  color={colors.primaryDark}
+                  color={colors.primary}
                 />
               </Pressable>
               <Pressable

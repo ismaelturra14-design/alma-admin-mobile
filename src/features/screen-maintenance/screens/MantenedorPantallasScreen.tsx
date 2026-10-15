@@ -16,6 +16,7 @@ import {
 
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
 import { PaginatedList } from "@/components/ui/PaginatedList";
+import { Toast, useToastState } from "@/components/ui/DesignSystem";
 import { PERMISSIONS } from "@/constants/permissions";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import {
@@ -28,6 +29,7 @@ import { colors } from "@/theme/colors";
 export function MantenedorPantallasScreen() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MANAGE_SCREENS);
+  const { message: successMessage, showToast, dismissToast } = useToastState();
   const [screens, setScreens] = useState<ManagedScreen[]>([]);
   const [facilities, setFacilities] = useState<FacilityOption[]>([]);
   const [search, setSearch] = useState("");
@@ -110,6 +112,7 @@ export function MantenedorPantallasScreen() {
     if (!canManage) {
       return;
     }
+    dismissToast();
     setFormScreen(null);
     setName("");
     setFacilityId("");
@@ -122,6 +125,7 @@ export function MantenedorPantallasScreen() {
     if (!canManage) {
       return;
     }
+    dismissToast();
     setFormScreen(screen);
     setName(screen.name);
     setFacilityId(String(screen.facility_id));
@@ -158,12 +162,18 @@ export function MantenedorPantallasScreen() {
     setFormError("");
     try {
       const input = { name: cleanName, facility };
+      const wasEditing = formScreen !== null;
       if (formScreen) {
         await screensService.updateScreen(formScreen.iden, input);
       } else {
         await screensService.createScreen(input);
       }
       setFormVisible(false);
+      showToast(
+        wasEditing
+          ? "Pantalla editada exitosamente."
+          : "Pantalla creada exitosamente.",
+      );
       await loadScreens();
     } catch {
       setFormError(
@@ -187,6 +197,7 @@ export function MantenedorPantallasScreen() {
         current.filter((screen) => screen.iden !== deleteTarget.iden),
       );
       setDeleteTarget(null);
+      showToast("Pantalla eliminada exitosamente.");
     } catch {
       setDeleteError("No se pudo eliminar la pantalla. Intenta nuevamente.");
     } finally {
@@ -563,6 +574,11 @@ export function MantenedorPantallasScreen() {
           </View>
         </View>
       </Modal>
+      <Toast
+        visible={Boolean(successMessage)}
+        message={successMessage}
+        onDismiss={dismissToast}
+      />
     </View>
   );
 }

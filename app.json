@@ -9,15 +9,29 @@
     "icon": "./src/images/AlmaIconApp.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.almamedica.mobile"
+      "bundleIdentifier": "com.almamedica.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Alma Médica necesita acceso a tus fotos para adjuntar la imagen del usuario o su firma."
+      }
     },
     "android": {
       "package": "com.almamedica.mobile",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "com.google.android.gms.permission.AD_ID"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./src/images/AlmaIconApp.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": true
     },
     "web": {
       "output": "static",
@@ -26,6 +40,15 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 36,
+            "usesCleartextTraffic": false
+          }
+        }
+      ],
       [
         "expo-image-picker",
         {

@@ -3,18 +3,21 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+    BackHandler,
+    Platform,
     Pressable,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     View,
     useWindowDimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { AccessDeniedScreen } from "@/components/auth/AccessDeniedScreen";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { StatusBadge } from "@/components/ui/DesignSystem";
 import { Motion, Radii, Spacing, Typography } from "@/constants/theme";
 import { AuditPermissionsScreen } from "@/features/audit/screens/AuditPermissionsScreen";
 import { useAuth } from "@/features/auth/context/AuthContext";
@@ -116,7 +119,7 @@ const moduleScreens: Record<string, ModuleScreen> = {
   Financiadores: {
     id: "financiadores",
     label: "Financiadores",
-    description: "Gestión de financiadores del sistema.",
+    description: "Este módulo se encuentra en desarrollo y estará disponible cuando se integren sus endpoints.",
   },
   TiposPago: {
     id: "tipos-pago",
@@ -130,8 +133,8 @@ const moduleScreens: Record<string, ModuleScreen> = {
   },
   RelacionPagos: {
     id: "relacion-pagos",
-    label: "Relación de Pagos",
-    description: "Consulta y administración de relaciones de pagos.",
+    label: "Relación de pago",
+    description: "Este módulo se encuentra en desarrollo y estará disponible cuando se integren sus endpoints.",
   },
 };
 
@@ -143,6 +146,7 @@ export function AppDrawer() {
   const drawerWidth = Math.min(windowWidth * 0.86, 340);
   const [isOpen, setIsOpen] = useState(false);
   const [activeScreenId, setActiveScreenId] = useState("inicio");
+  const [screenHistory, setScreenHistory] = useState<string[]>([]);
   const [apiDenied, setApiDenied] = useState(false);
   const translateX = useSharedValue(-(drawerWidth + 1));
 
@@ -182,6 +186,40 @@ export function AppDrawer() {
     () => subscribeToApiForbidden(() => setApiDenied(true)),
     [],
   );
+
+  useEffect(() => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (isOpen) {
+          setIsOpen(false);
+          return true;
+        }
+
+        if (screenHistory.length > 0) {
+          const previousScreenId = screenHistory[screenHistory.length - 1];
+          setScreenHistory((history) => history.slice(0, -1));
+          setActiveScreenId(previousScreenId);
+          setApiDenied(false);
+          return true;
+        }
+
+        if (activeScreenId !== "inicio") {
+          setActiveScreenId("inicio");
+          setApiDenied(false);
+          return true;
+        }
+
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [activeScreenId, isOpen, screenHistory]);
 
   useEffect(() => {
     const target = isOpen ? 0 : -(drawerWidth + 1);
@@ -227,6 +265,9 @@ export function AppDrawer() {
 
     const nextScreen = moduleScreens[route as keyof typeof moduleScreens];
     if (nextScreen) {
+      if (nextScreen.id !== activeScreenId) {
+        setScreenHistory((history) => [...history, activeScreenId]);
+      }
       setActiveScreenId(nextScreen.id);
     }
     setApiDenied(false);
@@ -249,9 +290,14 @@ export function AppDrawer() {
 
           <Text style={[styles.headerTitle, { color: colors.text }]}>{activeScreen.label}</Text>
 
-          <View accessibilityRole="image" accessibilityLabel={`Perfil de ${fullName}`} style={[styles.userBadge, { backgroundColor: colors.primary }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Abrir perfil de ${fullName}`}
+            onPress={() => router.push("/profile")}
+            style={[styles.userBadge, { backgroundColor: colors.primary }]}
+          >
             <Text style={[styles.userBadgeText, { color: colors.surface }]}>{initials}</Text>
-          </View>
+          </Pressable>
         </View>
 
         <View style={styles.content}>
@@ -357,8 +403,16 @@ export function AppDrawer() {
                         pressed && styles.menuItemPressed,
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel={item.label}
-                      accessibilityHint={`Abre el módulo ${item.label}.`}
+                      accessibilityLabel={
+                        item.underDevelopment
+                          ? `${item.label}, En desarrollo`
+                          : item.label
+                      }
+                      accessibilityHint={
+                        item.underDevelopment
+                          ? `Muestra información del módulo ${item.label}, que está en desarrollo.`
+                          : `Abre el módulo ${item.label}.`
+                      }
                       onPress={() => handleSelectModule(item.route)}
                     >
                       {isActive ? <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} /> : null}
@@ -377,6 +431,9 @@ export function AppDrawer() {
                       >
                         {item.label}
                       </Text>
+                      {item.underDevelopment ? (
+                        <StatusBadge label="En desarrollo" tone="warning" />
+                      ) : null}
                     </Pressable>
                   );
                 })}

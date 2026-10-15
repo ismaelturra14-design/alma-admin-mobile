@@ -5,19 +5,34 @@ import { ActivityIndicator, Platform, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/features/auth/context/AuthContext';
 
+function reportCaptureError(action: string, error: unknown): void {
+  if (__DEV__) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.warn(`Screen capture ${action} failed`, { message });
+  }
+}
+
 export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS === 'ios') {
-      void ScreenCapture.enableAppSwitcherProtectionAsync(0.85).catch(() => undefined);
+      void ScreenCapture.enableAppSwitcherProtectionAsync(0.85).catch((error) =>
+        reportCaptureError('app switcher protection', error),
+      );
     } else if (Platform.OS === 'android') {
-      void ScreenCapture.preventScreenCaptureAsync('alma-admin-privacy').catch(() => undefined);
+      void ScreenCapture.preventScreenCaptureAsync('alma-admin-privacy').catch((error) =>
+        reportCaptureError('prevention', error),
+      );
     }
 
     return () => {
       if (Platform.OS === 'ios') {
-        void ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => undefined);
+        void ScreenCapture.disableAppSwitcherProtectionAsync().catch((error) =>
+          reportCaptureError('app switcher protection reset', error),
+        );
       } else if (Platform.OS === 'android') {
-        void ScreenCapture.allowScreenCaptureAsync('alma-admin-privacy').catch(() => undefined);
+        void ScreenCapture.allowScreenCaptureAsync('alma-admin-privacy').catch((error) =>
+          reportCaptureError('prevention reset', error),
+        );
       }
     };
   }, []);

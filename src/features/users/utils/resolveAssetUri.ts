@@ -6,11 +6,14 @@ export function resolveAssetUri(value: string): string {
     return "";
   }
 
-  if (
-    /^https?:\/\//i.test(trimmed) ||
-    /^(content:|data:|blob:)/i.test(trimmed)
-  ) {
+  if (/^https:\/\//i.test(trimmed)) {
     return trimmed;
+  }
+  if (/^http:\/\//i.test(trimmed)) {
+    return __DEV__ ? trimmed : "";
+  }
+  if (/^(content:|data:|blob:)/i.test(trimmed)) {
+    return __DEV__ ? trimmed : "";
   }
   if (trimmed.startsWith("//")) {
     return `https:${trimmed}`;
@@ -36,7 +39,11 @@ export function resolveAssetUri(value: string): string {
     return `https://${trimmed}`;
   }
 
-  const baseUrl = ENV.PUBLIC_FILE_BASE_URL.replace(/\/+$/, "");
+  const configuredBaseUrl = ENV.PUBLIC_FILE_BASE_URL.trim();
+  if (!__DEV__ && !/^https:\/\//i.test(configuredBaseUrl)) {
+    return "";
+  }
+  const baseUrl = configuredBaseUrl.replace(/\/+$/, "");
   path = path.replace(/^\/+/, "");
   const basePath = baseUrl
     .match(/^https?:\/\/[^/]+(\/.*)$/i)?.[1]

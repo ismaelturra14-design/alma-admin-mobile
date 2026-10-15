@@ -86,3 +86,20 @@ export function getFriendlyErrorMessage(error: unknown, fallback: string): strin
 
   return fallback;
 }
+
+export function getApiErrorLogDetails(
+  error: unknown,
+): { message: string; status?: number } {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return { message };
+  }
+
+  const response = error.response;
+  if (typeof response !== "object" || response === null || !("status" in response)) {
+    return { message };
+  }
+
+  const status = response.status;
+  return typeof status === "number" ? { message, status } : { message };
+}

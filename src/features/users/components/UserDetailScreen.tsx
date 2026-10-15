@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { PERMISSIONS } from "@/constants/permissions";
+import { Toast, useToastState } from "@/components/ui/DesignSystem";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import {
     rolePermissionsService,
@@ -75,6 +76,7 @@ export function UserDetailScreen({
   onBack,
 }: UserDetailScreenProps) {
   const { hasPermission } = useAuth();
+  const { message: successMessage, showToast, dismissToast } = useToastState();
   const canViewGroupPermissions = hasPermission(
     PERMISSIONS.VIEW_PERMISSION_MAINTAINER,
   );
@@ -390,6 +392,7 @@ export function UserDetailScreen({
           .filter((value) => Number.isInteger(value) && value > 0),
       );
       setAssignmentModalOpen(false);
+      showToast("Prestaciones del usuario actualizadas correctamente.");
     } catch (requestError) {
       setAssignmentError(
         getErrorMessage(requestError) ||
@@ -655,6 +658,7 @@ export function UserDetailScreen({
                 );
                 return;
               }
+              dismissToast();
               setAssignmentModalOpen(true);
             }}
             disabled={!active}
@@ -898,6 +902,11 @@ export function UserDetailScreen({
           </View>
         </View>
       </Modal>
+      <Toast
+        visible={Boolean(successMessage)}
+        message={successMessage}
+        onDismiss={dismissToast}
+      />
     </View>
   );
 }

@@ -1,4 +1,5 @@
 import { PERMISSIONS } from "@/constants/permissions";
+import { featureFlags } from "@/config/featureFlags";
 import { ROLE_GROUPS, ROLES } from "@/constants/roles";
 
 export type MenuItemRoute =
@@ -30,6 +31,7 @@ export type DrawerMenuItem = {
   permissions?: string[];
   requiredGroups?: number[];
   visibleInDrawer?: boolean;
+  underDevelopment?: boolean;
 };
 
 export type DrawerMenuSection = {
@@ -109,26 +111,6 @@ export const drawerMenuSections: DrawerMenuSection[] = [
     ],
   },
   {
-    id: "caja",
-    title: "Caja",
-    items: [
-      {
-        id: "caja",
-        label: "Caja",
-        route: "Caja",
-        icon: "wallet-outline",
-        section: "caja",
-        requiredGroups: [
-          ROLES.CAJA,
-          ROLES.ADMINISTRADORES,
-          ROLES.GERENCIA,
-          ROLES.CONTABILIDAD,
-        ],
-        visibleInDrawer: true,
-      },
-    ],
-  },
-  {
     id: "sistema",
     title: "Sistema & Herramientas",
     items: [
@@ -202,6 +184,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
         icon: "tablet-portrait-outline",
         section: "sistema",
         requiredGroups: [ROLES.ADMINISTRADORES, ROLES.GERENCIA, ROLES.IT],
+        underDevelopment: true,
         visibleInDrawer: true,
       },
       {
@@ -231,6 +214,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
           ROLES.CONTABILIDAD,
         ],
         visibleInDrawer: true,
+        underDevelopment: true,
       },
       {
         id: "tipos-pago",
@@ -243,6 +227,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
           ROLES.GERENCIA,
           ROLES.CONTABILIDAD,
         ],
+        underDevelopment: true,
         visibleInDrawer: true,
       },
       {
@@ -260,7 +245,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
       },
       {
         id: "relacion-pagos",
-        label: "Relación de Pagos",
+        label: "Relación de pago",
         route: "RelacionPagos",
         icon: "swap-horizontal-outline",
         section: "comercial",
@@ -270,6 +255,7 @@ export const drawerMenuSections: DrawerMenuSection[] = [
           ROLES.CONTABILIDAD,
         ],
         visibleInDrawer: true,
+        underDevelopment: true,
       },
     ],
   },
@@ -282,6 +268,9 @@ export function getVisibleMenuSections(userGroupId?: number | null) {
   return drawerMenuSections
     .map((section) => {
       const visibleItems = section.items.filter((item) => {
+        if (item.underDevelopment && !featureFlags.showUnderDevelopmentModules) {
+          return false;
+        }
         if (!userGroupId) {
           return false;
         }

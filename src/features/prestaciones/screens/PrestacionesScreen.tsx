@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModuleBanner } from '@/components/ui/ModuleBanner';
 import { Pagination } from '@/components/ui/PaginatedList';
@@ -460,6 +461,7 @@ function FormInput({
 
 export function PrestacionesScreen() {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [prestaciones, setPrestaciones] = useState<Prestacion[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [modalidades, setModalidades] = useState<ModalidadOption[]>([]);
@@ -1060,7 +1062,16 @@ export function PrestacionesScreen() {
       </ScrollView>
 
       <Modal visible={formVisible} animationType="slide" transparent onRequestClose={closeForm}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[
+            styles.modalBackdrop,
+            {
+              paddingTop: Math.max(12, insets.top + 12),
+              paddingBottom: Math.max(12, insets.bottom + 12),
+            },
+          ]}
+        >
           <View style={[styles.modalCard, { backgroundColor: colors.surface }]}> 
             <View style={styles.modalHeader}> 
               <Text style={[styles.modalTitle, { color: colors.text }]}>
@@ -1079,7 +1090,10 @@ export function PrestacionesScreen() {
 
             <ScrollView
               style={styles.formScroll}
-              contentContainerStyle={styles.formScrollContent}
+              contentContainerStyle={[
+                styles.formScrollContent,
+                { paddingBottom: Math.max(24, insets.bottom + 24) },
+              ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >

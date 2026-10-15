@@ -16,6 +16,7 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { UserAsset, UserCatalogs, UserFormValues } from "@/features/users/types/users";
 import { resolveAssetUri } from "@/features/users/utils/resolveAssetUri";
@@ -546,6 +547,7 @@ export function UserFormModal({
   onRetryDetail,
   onRetryCatalogs,
 }: UserFormModalProps) {
+  const insets = useSafeAreaInsets();
   const isCreate = mode === "create";
   const communeOptions = catalogs.communes
     .filter((commune) => !form.state || String(commune.region) === form.state)
@@ -571,7 +573,13 @@ export function UserFormModal({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        style={styles.modalBackdrop}
+        style={[
+          styles.modalBackdrop,
+          {
+            paddingTop: Math.max(12, insets.top + 12),
+            paddingBottom: Math.max(12, insets.bottom + 12),
+          },
+        ]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.formModal}>

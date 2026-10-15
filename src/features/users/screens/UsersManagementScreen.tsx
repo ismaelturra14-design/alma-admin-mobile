@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    BackHandler,
     ActivityIndicator,
     Modal,
     Pressable,
@@ -10,9 +11,11 @@ import {
     Text,
     TextInput,
     View,
+    Platform,
 } from "react-native";
 
 import { PaginatedList } from "@/components/ui/PaginatedList";
+import { Toast, useToastState } from "@/components/ui/DesignSystem";
 import { PERMISSIONS } from "@/constants/permissions";
 import { PAGE_SIZE } from "@/constants/theme";
 import { useAuth } from "@/features/auth/context/AuthContext";
@@ -162,6 +165,7 @@ function normalizedSearch(value: string): string {
 export function UsersManagementScreen() {
   const { hasPermission } = useAuth();
   const canCreateUsers = hasPermission(PERMISSIONS.CREATE_USERS);
+  const { message: successMessage, showToast, dismissToast } = useToastState();
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [photoRefreshToken, setPhotoRefreshToken] = useState(0);
   const [catalogs, setCatalogs] = useState<UserCatalogs>(emptyCatalogs);
@@ -188,6 +192,22 @@ export function UsersManagementScreen() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "android" || !selectedUser) {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        setSelectedUser(null);
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [selectedUser]);
 
   const [statusTarget, setStatusTarget] = useState<SystemUser | null>(null);
   const [statusError, setStatusError] = useState("");
@@ -327,6 +347,7 @@ export function UsersManagementScreen() {
     if (!canCreateUsers) {
       return;
     }
+    dismissToast();
     setFormMode("create");
     setEditingId(null);
     setForm(createEmptyForm());
@@ -341,6 +362,7 @@ export function UsersManagementScreen() {
     if (!canCreateUsers) {
       return;
     }
+    dismissToast();
     setFormMode("edit");
     setEditingId(user.id);
     setForm(toFormValues(user));
@@ -415,6 +437,7 @@ export function UsersManagementScreen() {
 
     setSaving(true);
     setFormMessage("");
+    dismissToast();
     try {
       if (formMode === "create") {
         await usersService.createUser(form);
@@ -423,6 +446,11 @@ export function UsersManagementScreen() {
       }
       setFormVisible(false);
       setEditingId(null);
+      showToast(
+        formMode === "create"
+          ? "Usuario creado exitosamente."
+          : "Usuario actualizado exitosamente.",
+      );
       await loadUsers();
     } catch (error) {
       setFormMessage(
@@ -517,6 +545,7 @@ export function UsersManagementScreen() {
           ),
         );
       }
+      showToast("Cambio de estado deshecho correctamente.");
     } catch (error) {
       setListError(
         getRequestMessage(error, "No se pudo deshacer el cambio de estado."),
@@ -1004,6 +1033,11 @@ export function UsersManagementScreen() {
           onBack={() => setSelectedUser(null)}
         />
       ) : null}
+      <Toast
+        visible={Boolean(successMessage)}
+        message={successMessage}
+        onDismiss={dismissToast}
+      />
     </View>
   );
 }

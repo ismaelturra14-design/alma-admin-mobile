@@ -14,6 +14,7 @@ import {
 
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
 import { PaginatedList } from "@/components/ui/PaginatedList";
+import { Toast, useToastState } from "@/components/ui/DesignSystem";
 import { PERMISSIONS } from "@/constants/permissions";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import {
@@ -30,6 +31,7 @@ type PendingChange = {
 export function SystemInterfacesScreen() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MANAGE_INTERFACES);
+  const { message: successMessage, showToast, dismissToast } = useToastState();
   const [interfaces, setInterfaces] = useState<SystemInterface[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -88,6 +90,7 @@ export function SystemInterfacesScreen() {
       return;
     }
     setActionError("");
+    dismissToast();
     setPendingChange({ item, nextStatus: enabled ? 1 : 0 });
   };
 
@@ -110,6 +113,11 @@ export function SystemInterfacesScreen() {
       await systemInterfacesService.updateSystemInterfaceStatus(
         item.id,
         nextStatus,
+      );
+      showToast(
+        nextStatus === 1
+          ? "Interfaz activada correctamente."
+          : "Interfaz desactivada correctamente.",
       );
     } catch {
       setInterfaces((current) =>
@@ -369,6 +377,11 @@ export function SystemInterfacesScreen() {
           </View>
         </View>
       </Modal>
+      <Toast
+        visible={Boolean(successMessage)}
+        message={successMessage}
+        onDismiss={dismissToast}
+      />
     </View>
   );
 }

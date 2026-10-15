@@ -2,17 +2,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "@/components/ui/Button";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import { Input } from "@/components/ui/Input";
 import { Elevation, Motion, Radii, Spacing, Typography } from "@/constants/theme";
+import { PRIVACY_POLICY_URL } from "@/config/privacy";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { useAppTheme } from "@/hooks/use-app-theme";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
-import { getFriendlyErrorMessage } from "@/utils/apiError";
+import { getApiErrorLogDetails } from "@/utils/apiError";
+import { openExternalLink } from "@/utils/openExternalLink";
 
 export function LoginForm() {
   const { login } = useAuth();
@@ -48,19 +50,10 @@ export function LoginForm() {
       await login(nextUsername, nextPassword);
       router.replace({ pathname: "/home" });
     } catch (requestError) {
-      const message = getFriendlyErrorMessage(
-        requestError,
-        "No se pudo iniciar sesión. Inténtalo nuevamente.",
-      );
-      const status = typeof requestError === "object" && requestError !== null && "response" in requestError
-        ? Number((requestError as { response?: { status?: number } }).response?.status)
-        : undefined;
-
-      setError(
-        status === 401
-          ? "Credenciales inválidas. Verifica tu usuario y contraseña."
-          : message,
-      );
+      if (__DEV__) {
+        console.warn("Login failed", getApiErrorLogDetails(requestError));
+      }
+      setError("No se pudo iniciar sesión. Verifica tus datos e intenta nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -148,6 +141,15 @@ export function LoginForm() {
             Acceso seguro para personal autorizado
           </Text>
         </Animated.View>
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => void openExternalLink(PRIVACY_POLICY_URL)}
+          style={styles.privacyLink}
+        >
+          <Text style={[styles.privacyLinkText, { color: colors.primary }]}>
+            Política de privacidad
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -218,5 +220,15 @@ const styles = StyleSheet.create({
   },
   securityText: {
     ...Typography.caption,
+  },
+  privacyLink: {
+    alignSelf: "center",
+    marginTop: Spacing.three,
+    padding: Spacing.two,
+  },
+  privacyLinkText: {
+    ...Typography.caption,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
 });

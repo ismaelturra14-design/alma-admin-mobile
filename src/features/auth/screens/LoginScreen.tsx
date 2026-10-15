@@ -1,9 +1,9 @@
 import {
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     StyleSheet,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { useAppTheme } from "@/hooks/use-app-theme";

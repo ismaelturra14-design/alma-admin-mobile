@@ -25,6 +25,27 @@ const refreshClient = create({
   timeout: 20000,
 });
 
+function enforceHttpsInProduction(
+  config: InternalAxiosRequestConfig,
+): InternalAxiosRequestConfig {
+  if (!__DEV__) {
+    let requestUrl: URL;
+    try {
+      requestUrl = config.baseURL
+        ? new URL(config.url ?? '', config.baseURL)
+        : new URL(config.url ?? '');
+    } catch {
+      throw new Error('API requests must use a valid HTTPS URL in production.');
+    }
+
+    if (requestUrl.protocol !== 'https:') {
+      throw new Error('API requests must use HTTPS in production.');
+    }
+  }
+
+  return config;
+}
+
 let isRefreshing = false;
 let failedQueue: {
   resolve: (value: string) => void;
@@ -48,6 +69,7 @@ const processQueue = (error: unknown, token: string | null = null) => {
 
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    enforceHttpsInProduction(config);
     const token = await sessionStore.getAccessToken();
 
     if (token && config.headers) {
@@ -67,8 +89,9 @@ api.interceptors.response.use(
     }
 
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const isLoginRequest = originalRequest.url?.includes('/auth/login/web');
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !isLoginRequest && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
@@ -137,5 +160,7 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+refreshClient.interceptors.request.use(enforceHttpsInProduction);
 
 export default api;

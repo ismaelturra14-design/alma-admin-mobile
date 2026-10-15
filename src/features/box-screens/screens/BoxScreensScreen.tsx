@@ -16,7 +16,9 @@ import {
 
 import { ModuleBanner } from "@/components/ui/ModuleBanner";
 import { PaginatedList } from "@/components/ui/PaginatedList";
+import { Toast, useToastState } from "@/components/ui/DesignSystem";
 import { PERMISSIONS } from "@/constants/permissions";
+import { getApiErrorLogDetails } from "@/utils/apiError";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import {
     boxScreensService,
@@ -40,6 +42,7 @@ type LoadErrors = {
 export function BoxScreensScreen() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission(PERMISSIONS.MANAGE_SCREENS);
+  const { message: successMessage, showToast, dismissToast } = useToastState();
 
   const [assignments, setAssignments] = useState<BoxScreenAssignment[]>([]);
   const [facilities, setFacilities] = useState<FacilityOption[]>([]);
@@ -78,7 +81,9 @@ export function BoxScreensScreen() {
       });
     } catch (error) {
       const message = "No se pudieron cargar las asignaciones.";
-      console.warn("BoxScreensScreen loadAssignments failed", error);
+      if (__DEV__) {
+        console.warn("BoxScreensScreen loadAssignments failed", getApiErrorLogDetails(error));
+      }
       setLoadErrors((current) => ({ ...current, assignments: message }));
     }
   }, []);
@@ -94,7 +99,9 @@ export function BoxScreensScreen() {
       });
     } catch (error) {
       const message = "No se pudieron cargar las sucursales.";
-      console.warn("BoxScreensScreen loadFacilities failed", error);
+      if (__DEV__) {
+        console.warn("BoxScreensScreen loadFacilities failed", getApiErrorLogDetails(error));
+      }
       setLoadErrors((current) => ({ ...current, facilities: message }));
     }
   }, []);
@@ -110,7 +117,9 @@ export function BoxScreensScreen() {
       });
     } catch (error) {
       const message = "No se pudieron cargar las pantallas.";
-      console.warn("BoxScreensScreen loadScreens failed", error);
+      if (__DEV__) {
+        console.warn("BoxScreensScreen loadScreens failed", getApiErrorLogDetails(error));
+      }
       setLoadErrors((current) => ({ ...current, screens: message }));
     }
   }, []);
@@ -134,10 +143,12 @@ export function BoxScreensScreen() {
       }
       setBoxes(value);
     } catch (error) {
-      console.warn("BoxScreensScreen loadBoxesByFacility failed", {
-        facilityId: facilityIdToLoad,
-        error,
-      });
+      if (__DEV__) {
+        console.warn(
+          "BoxScreensScreen loadBoxesByFacility failed",
+          getApiErrorLogDetails(error),
+        );
+      }
       if (boxesRequestIdRef.current !== currentRequestId) {
         return;
       }
@@ -195,6 +206,7 @@ export function BoxScreensScreen() {
     if (!canManage) {
       return;
     }
+    dismissToast();
     setEditingAssignment(null);
     setFacilityId("");
     setBoxId("");
@@ -211,6 +223,7 @@ export function BoxScreensScreen() {
     if (!canManage) {
       return;
     }
+    dismissToast();
     setEditingAssignment(assignment);
     setFacilityId(String(assignment.facility_id));
     setBoxId("");
@@ -275,15 +288,23 @@ export function BoxScreensScreen() {
     };
 
     try {
+      const wasEditing = editingAssignment !== null;
       if (editingAssignment) {
         await boxScreensService.updateBoxScreen(editingAssignment.iden, payload);
       } else {
         await boxScreensService.createBoxScreen(payload);
       }
       setFormVisible(false);
+      showToast(
+        wasEditing
+          ? "Vínculo de pantalla editado exitosamente."
+          : "Vínculo de pantalla creado exitosamente.",
+      );
       await loadAssignments();
     } catch (error) {
-      console.warn("BoxScreensScreen saveAssignment failed", error);
+      if (__DEV__) {
+        console.warn("BoxScreensScreen saveAssignment failed", getApiErrorLogDetails(error));
+      }
       setFormError("No se pudo guardar el vínculo. Intenta nuevamente.");
     } finally {
       setIsSaving(false);
@@ -304,8 +325,11 @@ export function BoxScreensScreen() {
         current.filter((assignment) => assignment.iden !== deleteTarget.iden),
       );
       setDeleteTarget(null);
+      showToast("Vínculo de pantalla eliminado exitosamente.");
     } catch (error) {
-      console.warn("BoxScreensScreen deleteAssignment failed", error);
+      if (__DEV__) {
+        console.warn("BoxScreensScreen deleteAssignment failed", getApiErrorLogDetails(error));
+      }
       setDeleteError("No se pudo eliminar el vínculo. Intenta nuevamente.");
     } finally {
       setDeletingId(null);
@@ -313,7 +337,7 @@ export function BoxScreensScreen() {
   };
 
   const retryFailedLoad = useCallback(async () => {
-    const failedKeys = Object.keys(loadErrors) as Array<keyof LoadErrors>;
+    const failedKeys = Object.keys(loadErrors) as (keyof LoadErrors)[];
     if (failedKeys.length === 0) {
       await Promise.allSettled([loadAssignments(), loadCatalogs()]);
       return;
@@ -774,6 +798,11 @@ export function BoxScreensScreen() {
           </View>
         </View>
       </Modal>
+      <Toast
+        visible={Boolean(successMessage)}
+        message={successMessage}
+        onDismiss={dismissToast}
+      />
     </View>
   );
 }
